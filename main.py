@@ -8,7 +8,8 @@ from routes import auth, users, trips, expenses, cities
 app = FastAPI(
     title="FairShare API",
     description="Backend API for FairShare - Group Trip Management & Expense Splitting App",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/fairtrip"
 )
 
 # Configure CORS

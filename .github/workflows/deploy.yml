@@ -1,0 +1,47 @@
+name: Deploy Backend (Simple)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Deploy to Server via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          # Project Directory
+          PROJECT_DIR="~/fairtrip-backend"
+          
+          # Initialize directory if it doesn't exist
+          if [ ! -d "$PROJECT_DIR" ]; then
+            git clone https://github.com/agamjain18/fairtrip-backend.git "$PROJECT_DIR"
+          fi
+          
+          cd "$PROJECT_DIR"
+          git pull origin main
+          
+          # Setup Virtual Environment
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+          fi
+          
+          source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Create .env file
+          echo "MONGODB_URI=${{ vars.MONGODB_URI }}" > .env
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+          echo "DATABASE_NAME=fairshare" >> .env
+          
+          # Update the Systemd Service
+          # Note: This assumes you have already created the fairtrip-backend.service file
+          # and the user has permission to restart it (e.g., via sudo without password)
+          sudo systemctl restart fairtrip-backend || echo "Service 'fairtrip-backend' not found or failed to restart. Please ensure systemd service is configured."

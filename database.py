@@ -354,9 +354,11 @@ class Notification(Document):
     class Settings:
         name = "notifications"
 
+import os
+
 # Database setup
-DATABASE_URL = "mongodb://localhost:27017"
-DATABASE_NAME = "fairshare"
+DATABASE_URL = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "fairshare")
 
 async def init_db():
     client = AsyncIOMotorClient(DATABASE_URL)

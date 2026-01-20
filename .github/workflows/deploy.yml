@@ -30,6 +30,13 @@ jobs:
             sudo systemctl enable --now mongod
           fi
           
+          # 1.5 Port Cleanup & Service Stop
+          echo "⏹️ Stopping existing services and cleaning up ports..."
+          sudo systemctl stop fairtrip-backend || true
+          sudo systemctl stop nginx || true
+          sudo fuser -k 8000/tcp || true
+          sudo fuser -k 80/tcp || true
+          
           # 2. Project Directory Setup
           PROJECT_DIR="/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
           if [ ! -d "$PROJECT_DIR" ]; then
@@ -63,7 +70,8 @@ jobs:
           sudo cp fairtrip-backend.service /etc/systemd/system/
           sudo systemctl daemon-reload
           sudo systemctl enable fairtrip-backend
-          sudo systemctl restart fairtrip-backend || (journalctl -u fairtrip-backend --no-pager -n 50 && exit 1)
+          echo "🚀 Starting backend service..."
+          sudo systemctl start fairtrip-backend || (journalctl -u fairtrip-backend --no-pager -n 50 && exit 1)
           
           # 6. Nginx Configuration
           sudo cp nginx-fairtrip.conf /etc/nginx/sites-available/fairtrip
@@ -72,7 +80,8 @@ jobs:
           
           # Handle Nginx (check logs if start fails)
           sudo nginx -t
-          sudo systemctl restart nginx || (journalctl -u nginx --no-pager -n 50 && exit 1)
+          echo "🚀 Starting Nginx..."
+          sudo systemctl start nginx || (journalctl -u nginx --no-pager -n 50 && exit 1)
           
           # 7. Verification Logs
           echo "--------------------------------------------------------"

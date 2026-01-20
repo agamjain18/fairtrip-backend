@@ -71,5 +71,39 @@ jobs:
           sudo ln -sf /etc/nginx/sites-available/fairtrip /etc/nginx/sites-enabled/
           sudo rm -f /etc/nginx/sites-enabled/default
           
-          # Test and reload Nginx
+          # Ensure Nginx is started and test config
+          sudo systemctl enable nginx
+          sudo systemctl start nginx
           sudo nginx -t && sudo systemctl reload nginx
+          
+          # 7. Verification Logs
+          echo "--------------------------------------------------------"
+          echo "🚀 DEPLOYMENT SUCCESSFUL!"
+          echo "--------------------------------------------------------"
+          
+          # Check local backend status
+          echo "🔍 Checking Backend Service..."
+          if systemctl is-active --quiet fairtrip-backend; then
+            echo "✅ Backend service is RUNNING"
+          else
+            echo "❌ Backend service is FAILED"
+            systemctl status fairtrip-backend --no-pager
+            exit 1
+          fi
+          
+          # Check local API health
+          echo "🔍 Checking Local API Health..."
+          sleep 5 # Wait for app to start
+          HEALTH_CHECK=$(curl -s http://localhost:8000/health)
+          if [[ $HEALTH_CHECK == *"healthy"* ]]; then
+            echo "✅ Local API Health: OK ($HEALTH_CHECK)"
+          else
+            echo "❌ Local API Health Check FAILED: $HEALTH_CHECK"
+            exit 1
+          fi
+          
+          # Confirm Production URL
+          echo "--------------------------------------------------------"
+          echo "🌐 API is now live at: https://api.agamjain.online/fairtrip"
+          echo "📕 Documentation: https://api.agamjain.online/fairtrip/docs"
+          echo "--------------------------------------------------------"

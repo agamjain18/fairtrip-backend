@@ -10,6 +10,7 @@ cryptography
 passlib[bcrypt]
 python-dotenv
 bcrypt
+google-generativeai
 
 
 

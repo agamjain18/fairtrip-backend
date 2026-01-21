@@ -1,52 +1,15 @@
-name: Deploy Backend to Server
+name: Deploy Backend to Server (Bare Metal)
 
 on:
   push:
     branches: [ "main" ]
 
-env:
-  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-  IMAGE_NAME: fairtrip-backend
-
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest,${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Copy Config to Server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.deploy.yml"
-          target: "/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
 
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@master
@@ -55,20 +18,72 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            mkdir -p /home/${{ secrets.SERVER_USER }}/fairtrip-backend
-            cd /home/${{ secrets.SERVER_USER }}/fairtrip-backend
+            # 1. Update system and install dependencies
+            sudo apt-get update
+            sudo apt-get install -y python3-pip python3-venv git gnupg curl
             
-            # Create .env file
-            echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_USERNAME }}" > .env
+            # Install MongoDB if not present (system-wide)
+            if ! command -v mongod &> /dev/null; then
+              curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg --yes
+              echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+              sudo apt-get update
+              sudo apt-get install -y mongodb-org
+              sudo systemctl enable --now mongod
+            fi
             
-            # Pull latest image
-            sudo docker compose -f docker-compose.deploy.yml pull backend
+            # 2. Project Directory Setup
+            PROJECT_DIR="/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
+            mkdir -p "$PROJECT_DIR"
             
-            # Start service
-            sudo docker compose -f docker-compose.deploy.yml up -d --remove-orphans backend
-
-            # Clean up old systemd service if it exists (migrating from bare metal)
-            sudo systemctl stop fairtrip-backend || true
-            sudo systemctl disable fairtrip-backend || true
-            sudo rm -f /etc/systemd/system/fairtrip-backend.service || true
+            # We use rsync or git. If using git, ensure repo is initialized.
+            # Assuming the user wants to keep the git-based flow from the original script.
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              git clone https://github.com/agamjain18/fairtrip-backend.git "$PROJECT_DIR" || true
+            fi
+            
+            cd "$PROJECT_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # 3. Python Environment Setup
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            
+            # 4. Environment Configuration
+            # Using secrets and vars from GitHub
+            echo "MONGODB_URI=mongodb://localhost:27017" > .env
+            echo "DATABASE_NAME=fairshare" >> .env
+            echo "ROOT_PATH=/fairtrip" >> .env
+            
+            # 5. Systemd Service Configuration
+            # Update paths in the service file to match the actual server path
+            sed -i "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_DIR|g" fairtrip-backend.service
+            sed -i "s|Environment=\"PATH=.*|Environment=\"PATH=$PROJECT_DIR/venv/bin\"|g" fairtrip-backend.service
+            sed -i "s|ExecStart=.*|ExecStart=$PROJECT_DIR/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8005|g" fairtrip-backend.service
+            sed -i "s|User=.*|User=${{ secrets.SERVER_USER }}|g" fairtrip-backend.service
+            
+            # Install/Update service
+            sudo cp fairtrip-backend.service /etc/systemd/system/
             sudo systemctl daemon-reload
+            sudo systemctl enable fairtrip-backend
+            
+            echo "🚀 Restarting backend service..."
+            sudo systemctl restart fairtrip-backend
+            
+            # 6. Verification
+            sleep 5
+            if systemctl is-active --quiet fairtrip-backend; then
+              echo "✅ Backend service is RUNNING on port 8005"
+            else
+              echo "❌ Backend service FAILED to start. Checking logs..."
+              journalctl -u fairtrip-backend --no-pager -n 50
+              exit 1
+            fi
+
+            # Clean up old Docker container if it exists (from my previous mistake)
+            sudo docker stop fairtrip_backend || true
+            sudo docker rm fairtrip_backend || true

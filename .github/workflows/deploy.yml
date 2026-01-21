@@ -1,117 +1,74 @@
-name: Deploy Backend (Simple)
+name: Deploy Backend to Server
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  IMAGE_NAME: fairtrip-backend
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Deploy to Server via SSH
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
-          # 1. Update system and install dependencies
-          sudo apt-get update
-          sudo apt-get install -y python3-pip python3-venv git nginx gnupg curl
-          
-          # Install MongoDB if not present
-          if ! command -v mongod &> /dev/null; then
-            curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg --yes
-            echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-            sudo apt-get update
-            sudo apt-get install -y mongodb-org
-            sudo systemctl enable --now mongod
-          fi
-          
-          # 1.5 Port Cleanup & Service Stop
-          echo "⏹️ Stopping existing services and cleaning up ports..."
-          sudo systemctl stop fairtrip-backend || true
-          sudo systemctl stop nginx || true
-          sudo fuser -k 8000/tcp || true
-          sudo fuser -k 80/tcp || true
-          
-          # 2. Project Directory Setup
-          PROJECT_DIR="/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
-          if [ ! -d "$PROJECT_DIR" ]; then
-            git clone https://github.com/agamjain18/fairtrip-backend.git "$PROJECT_DIR"
-          fi
-          
-          cd "$PROJECT_DIR"
-          git fetch origin main
-          git reset --hard origin/main
-          
-          # 3. Python Environment Setup
-          if [ ! -d "venv" ]; then
-            python3 -m venv venv
-          fi
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          
-          # 4. Environment Configuration
-          echo "MONGODB_URI=${{ vars.MONGODB_URI }}" > .env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-          echo "DATABASE_NAME=fairshare" >> .env
-          echo "DATABASE_URL=${{ vars.MONGODB_URI }}" >> .env
-          
-          # 5. Systemd Service Configuration
-          sed -i "s|WorkingDirectory=.*|WorkingDirectory=$PROJECT_DIR|g" fairtrip-backend.service
-          sed -i "s|Environment=\"PATH=.*|Environment=\"PATH=$PROJECT_DIR/venv/bin\"|g" fairtrip-backend.service
-          sed -i "s|ExecStart=.*|ExecStart=$PROJECT_DIR/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000|g" fairtrip-backend.service
-          sed -i "s|User=.*|User=${{ secrets.SERVER_USER }}|g" fairtrip-backend.service
-          
-          sudo cp fairtrip-backend.service /etc/systemd/system/
-          sudo systemctl daemon-reload
-          sudo systemctl enable fairtrip-backend
-          echo "🚀 Starting backend service..."
-          sudo systemctl start fairtrip-backend || (journalctl -u fairtrip-backend --no-pager -n 50 && exit 1)
-          
-          # 6. Nginx Configuration
-          sudo cp nginx-fairtrip.conf /etc/nginx/sites-available/fairtrip
-          sudo ln -sf /etc/nginx/sites-available/fairtrip /etc/nginx/sites-enabled/
-          sudo rm -f /etc/nginx/sites-enabled/default
-          
-          # Handle Nginx (check logs if start fails)
-          sudo nginx -t
-          echo "🚀 Starting Nginx..."
-          sudo systemctl start nginx || (journalctl -u nginx --no-pager -n 50 && exit 1)
-          
-          # 7. Verification Logs
-          echo "--------------------------------------------------------"
-          echo "🚀 DEPLOYMENT SUCCESSFUL!"
-          echo "--------------------------------------------------------"
-          
-          # Check local backend status
-          echo "🔍 Checking Backend Service..."
-          if systemctl is-active --quiet fairtrip-backend; then
-            echo "✅ Backend service is RUNNING"
-          else
-            echo "❌ Backend service FAILED to stay active. Checking logs..."
-            journalctl -u fairtrip-backend --no-pager -n 50
-            exit 1
-          fi
-          
-          # Check local API health
-          echo "🔍 Checking Local API Health..."
-          sleep 5 # Wait for app to start
-          HEALTH_CHECK=$(curl -s http://localhost:8000/health)
-          if [[ $HEALTH_CHECK == *"healthy"* ]]; then
-            echo "✅ Local API Health: OK ($HEALTH_CHECK)"
-          else
-            echo "❌ Local API Health Check FAILED. Output: $HEALTH_CHECK"
-            echo "Attempting to show app logs for errors..."
-            journalctl -u fairtrip-backend --no-pager -n 50
-            exit 1
-          fi
-          
-          echo "--------------------------------------------------------"
-          echo "🌐 API is live at: https://api.agamjain.online/fairtrip"
-          echo "📕 Docs: https://api.agamjain.online/fairtrip/docs"
-          echo "--------------------------------------------------------"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest,${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Copy Config to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.deploy.yml"
+          target: "/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p /home/${{ secrets.SERVER_USER }}/fairtrip-backend
+            cd /home/${{ secrets.SERVER_USER }}/fairtrip-backend
+            
+            # Create .env file
+            echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_USERNAME }}" > .env
+            
+            # Pull latest image
+            sudo docker compose -f docker-compose.deploy.yml pull backend
+            
+            # Start service
+            sudo docker compose -f docker-compose.deploy.yml up -d --remove-orphans backend
+
+            # Clean up old systemd service if it exists (migrating from bare metal)
+            sudo systemctl stop fairtrip-backend || true
+            sudo systemctl disable fairtrip-backend || true
+            sudo rm -f /etc/systemd/system/fairtrip-backend.service || true
+            sudo systemctl daemon-reload

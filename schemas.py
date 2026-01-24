@@ -433,3 +433,91 @@ class TokenData(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+# Settlement Schemas
+class SettlementBase(BaseModel):
+    amount: float
+    currency: Optional[str] = "USD"
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
+    notes: Optional[str] = None
+
+class SettlementCreate(SettlementBase):
+    trip_id: str
+    from_user_id: str
+    to_user_id: str
+
+class SettlementUpdate(BaseModel):
+    status: Optional[str] = None
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
+    notes: Optional[str] = None
+
+class Settlement(SettlementBase):
+    id: PyObjectId
+    trip_id: Optional[PyObjectId] = None
+    from_user_id: Optional[PyObjectId] = None
+    to_user_id: Optional[PyObjectId] = None
+    status: str
+    settled_at: Optional[datetime] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Recurring Expense Schemas
+class RecurringExpenseBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    amount: float
+    currency: Optional[str] = "USD"
+    category: Optional[ExpenseCategoryEnum] = ExpenseCategoryEnum.OTHER
+    split_type: Optional[str] = "equal"
+    split_data: Optional[str] = None
+    frequency: str = "monthly"
+    interval: int = 1
+    start_date: datetime
+    end_date: Optional[datetime] = None
+
+class RecurringExpenseCreate(RecurringExpenseBase):
+    trip_id: Optional[str] = None
+    paid_by: str
+    participant_ids: List[str]
+
+class RecurringExpenseUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    is_active: Optional[bool] = None
+    end_date: Optional[datetime] = None
+
+class RecurringExpense(RecurringExpenseBase):
+    id: PyObjectId
+    trip_id: Optional[PyObjectId] = None
+    paid_by: Optional[PyObjectId] = None
+    next_occurrence: datetime
+    is_active: bool
+    last_generated: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Currency Rate Schemas
+class CurrencyRateBase(BaseModel):
+    from_currency: str
+    to_currency: str
+    rate: float
+    source: Optional[str] = "manual"
+
+class CurrencyRateCreate(CurrencyRateBase):
+    pass
+
+class CurrencyRate(CurrencyRateBase):
+    id: PyObjectId
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+

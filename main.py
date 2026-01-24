@@ -28,12 +28,17 @@ if not os.path.exists(UPLOAD_DIRECTORY):
 app.mount("/static", StaticFiles(directory=UPLOAD_DIRECTORY), name="static")
 
 from routes import auth, users, trips, expenses, cities, itinerary, checklist, misc_new
+from routes import settlements, recurring_expenses, currency, notifications
 
 # Include routers
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
 app.include_router(expenses.router)
+app.include_router(settlements.router)
+app.include_router(recurring_expenses.router)
+app.include_router(currency.router)
+app.include_router(notifications.router)
 app.include_router(cities.router)
 app.include_router(itinerary.router)
 app.include_router(checklist.router)

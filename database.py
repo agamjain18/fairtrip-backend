@@ -147,8 +147,11 @@ class Expense(Document):
     location: Optional[str] = None
     
     # Split details
-    split_type: str = "equal"  # equal, percentage, custom
+    split_type: str = "equal"  # equal, percentage, custom, shares
     split_data: Optional[str] = None  # JSON string for custom splits
+    
+    # Recurring expense reference
+    recurring_expense_id: Optional[str] = None
     
     expense_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -345,7 +348,7 @@ class Notification(Document):
     user: Link[User]
     title: str
     message: Optional[str] = None
-    type: Optional[str] = None  # expense, trip, friend, system
+    type: Optional[str] = None  # expense, trip, friend, system, settlement, reminder
     is_read: bool = False
     
     action_url: Optional[str] = None
@@ -353,6 +356,69 @@ class Notification(Document):
 
     class Settings:
         name = "notifications"
+
+class Settlement(Document):
+    """Track debt settlements between users"""
+    trip: Link[Trip]
+    from_user: Link[User]
+    to_user: Link[User]
+    amount: float
+    currency: str = "USD"
+    
+    payment_method: Optional[str] = None  # cash, bank_transfer, upi, card, etc.
+    payment_reference: Optional[str] = None  # Transaction ID, UPI ref, etc.
+    notes: Optional[str] = None
+    
+    status: str = "pending"  # pending, completed, cancelled
+    settled_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    class Settings:
+        name = "settlements"
+
+class RecurringExpense(Document):
+    """Template for recurring expenses like rent, subscriptions"""
+    trip: Optional[Link[Trip]] = None  # Can be trip-specific or general
+    title: str
+    description: Optional[str] = None
+    amount: float
+    currency: str = "USD"
+    category: ExpenseCategory = ExpenseCategory.OTHER
+    
+    paid_by: Link[User]
+    participants: List[Link[User]] = []
+    
+    split_type: str = "equal"
+    split_data: Optional[str] = None
+    
+    # Recurrence settings
+    frequency: str = "monthly"  # daily, weekly, monthly, yearly
+    interval: int = 1  # Every X frequency (e.g., every 2 weeks)
+    start_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    end_date: Optional[datetime] = None  # None means indefinite
+    next_occurrence: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    is_active: bool = True
+    last_generated: Optional[datetime] = None
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    class Settings:
+        name = "recurring_expenses"
+
+class CurrencyRate(Document):
+    """Store currency exchange rates for multi-currency support"""
+    from_currency: str  # e.g., "USD"
+    to_currency: str    # e.g., "EUR"
+    rate: float         # Exchange rate
+    
+    # Metadata
+    source: Optional[str] = "manual"  # manual, api, etc.
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    class Settings:
+        name = "currency_rates"
 
 import os
 
@@ -365,5 +431,6 @@ async def init_db():
     await init_beanie(database=client[DATABASE_NAME], document_models=[
         User, Friendship, UserSession, PaymentMethod, Trip, Expense, Dispute,
         ItineraryDay, Activity, ChecklistItem, Photo, Poll, PollVote,
-        BucketListItem, Accommodation, Flight, Transaction, Notification
+        BucketListItem, Accommodation, Flight, Transaction, Notification,
+        Settlement, RecurringExpense, CurrencyRate
     ])

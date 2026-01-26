@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import init_db
-from database import init_db
+from database_sql import init_db
+from routes_sql import auth, users, trips, expenses, cities, itinerary, checklist, misc_new
+from routes_sql import settlements, recurring_expenses, currency, notifications
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -27,9 +28,6 @@ if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
 app.mount("/static", StaticFiles(directory=UPLOAD_DIRECTORY), name="static")
 
-from routes import auth, users, trips, expenses, cities, itinerary, checklist, misc_new
-from routes import settlements, recurring_expenses, currency, notifications
-
 # Include routers
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -47,7 +45,7 @@ app.include_router(misc_new.router)
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to FairShare API (MongoDB Version)",
+        "message": "Welcome to FairShare API (SQLite Version)",
         "version": "1.0.0",
         "docs": "/docs",
         "redoc": "/redoc"
@@ -60,8 +58,8 @@ async def health_check():
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    await init_db()
-    print("Database initialized successfully!")
+    init_db()
+    print("SQLite Database initialized successfully!")
     print("API Documentation available at: http://localhost:8000/docs")
 
 

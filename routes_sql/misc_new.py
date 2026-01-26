@@ -1,11 +1,11 @@
 import shutil
 import os
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from database import Photo, Trip, User
+from sqlalchemy.orm import Session
+from database_sql import Photo, Trip, User, get_db
 from typing import List
 from datetime import datetime, timezone
-from beanie import PydanticObjectId
-from routes.auth import get_current_user
+from routes_sql.auth import get_current_user_sql
 
 router = APIRouter(prefix="/misc", tags=["Miscellanous"])
 
@@ -14,10 +14,11 @@ if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
     
 @router.post("/upload-receipt/{trip_id}")
-async def upload_receipt(
-    trip_id: str,
+def upload_receipt(
+    trip_id: int,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
 ):
     try:
         # Validate file
@@ -33,40 +34,27 @@ async def upload_receipt(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Generate URL (In a real app, this would be a cloud storage URL)
-        # For now, we'll return a path that needs to be served by a static file handler
+        # Generate URL
         url = f"/static/{filename}"
 
         # Create Photo record in DB
         receipt = Photo(
-            trip=PydanticObjectId(trip_id),
-            uploaded_by=current_user.id,
+            trip_id=trip_id,
+            uploaded_by_id=current_user.id,
             url=url,
             caption="Receipt",
             uploaded_at=datetime.now(timezone.utc)
         )
-        await receipt.save()
+        db.add(receipt)
+        db.commit()
+        db.refresh(receipt)
 
-        return {"url": url, "id": str(receipt.id), "filename": filename}
+        return {"url": url, "id": receipt.id, "filename": filename}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/receipts/{trip_id}")
-async def get_trip_receipts(trip_id: str):
-    receipts = await Photo.find(Photo.trip == PydanticObjectId(trip_id)).sort(-Photo.uploaded_at).to_list()
+def get_trip_receipts(trip_id: int, db: Session = Depends(get_db)):
+    receipts = db.query(Photo).filter(Photo.trip_id == trip_id).order_by(Photo.uploaded_at.desc()).all()
     return receipts
-
-@router.get("/maps/fleet_dashboard")
-async def get_fleet_dashboard_map():
-    # Example data; replace with database query
-    return {
-        "mapUrl": "https://maps.googleapis.com/maps/api/staticmap?center=LAX&zoom=14&size=600x300&maptype=roadmap&key=YOUR_API_KEY"
-    }
-
-@router.get("/maps/visa_entry_info")
-async def get_visa_entry_info_map():
-    # Example data; replace with database query
-    return {
-        "mapUrl": "https://maps.googleapis.com/maps/api/staticmap?center=Tokyo&zoom=9&size=600x300&maptype=terrain&key=YOUR_API_KEY"
-    }

@@ -76,6 +76,11 @@ jobs:
             
             cd "$PROJECT_DIR"
             
+            # Ensure port 8000 is free
+            echo "🧹 ensuring port 8000 is free..."
+            sudo fuser -k 8000/tcp || true
+            sleep 2
+            
             if pm2 list | grep -q "fairshare-backend"; then
                 echo "♻️ Deleting old PM2 process to ensure clean start..."
                 pm2 delete fairshare-backend

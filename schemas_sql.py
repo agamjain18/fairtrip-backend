@@ -68,6 +68,7 @@ class User(UserBase):
     total_balance: float
     amount_to_receive: float
     amount_to_pay: float
+    friend_code: Optional[str] = None
     created_at: datetime
     
     class Config:

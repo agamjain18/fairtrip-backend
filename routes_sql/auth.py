@@ -12,6 +12,11 @@ from datetime import datetime, timedelta, timezone
 from database_sql import get_db, User, OTP
 from schemas_sql import Token, LoginRequest, UserCreate, User as UserSchema, ForgotPasswordRequest, VerifyOTPRequest, ResetPasswordRequest, SocialLoginRequest
 import os
+import random
+import string
+
+def generate_friend_code(k=8):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -294,6 +299,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         avatar_url=user.avatar_url,
         phone=user.phone,
         bio=user.bio,
+        friend_code=generate_friend_code(),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
     )
@@ -469,6 +475,7 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
             avatar_url=None,
             phone=None,
             bio=None,
+            friend_code=generate_friend_code(),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )

@@ -11,6 +11,11 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 import os
+import random
+import string
+
+def generate_friend_code(k=8):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 # Security configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
@@ -257,6 +262,7 @@ async def social_login(social_data: SocialLoginRequest):
             avatar_url=None,
             phone=None,
             bio=None,
+            friend_code=generate_friend_code(),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )

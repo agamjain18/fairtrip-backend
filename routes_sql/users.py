@@ -10,6 +10,11 @@ from .notifications import send_notification_sql
 from schemas_sql import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate
 from datetime import datetime, timezone
 from routes_sql.auth import get_current_user_sql
+import random
+import string
+
+def generate_friend_code(k=8):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 UPLOAD_DIRECTORY = "uploads"
 if not os.path.exists(UPLOAD_DIRECTORY):
@@ -152,6 +157,67 @@ def add_friend(friend_id: int, background_tasks: BackgroundTasks, current_user: 
         
     return {"message": "Friend added successfully"}
 
+@router.post("/{user_id}/friends/add-by-code")
+def add_friend_by_code(user_id: int, friend_code: str, db: Session = Depends(get_db)):
+    """Add a friend by their unique friend code"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    target_user = db.query(User).filter(User.friend_code == friend_code).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Invalid Friend Code")
+    
+    if target_user.id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot add yourself")
+        
+    # Check existing friendship
+    existing = db.query(Friendship).filter(
+        ((Friendship.user_id == user.id) & (Friendship.friend_id == target_user.id)) |
+        ((Friendship.user_id == target_user.id) & (Friendship.friend_id == user.id))
+    ).first()
+    
+    if existing:
+        if existing.status == "accepted":
+            return {"message": "Already friends"}
+        else:
+             existing.status = "accepted"
+             # Regenerate target user code
+             target_user.friend_code = generate_friend_code()
+             db.commit()
+             increment_user_version(db, user.id)
+             increment_user_version(db, target_user.id)
+             return {"message": "Friend added successfully"}
+
+    # Create bi-directional friendship
+    f1 = Friendship(user_id=user.id, friend_id=target_user.id, status="accepted")
+    db.add(f1)
+    
+    # Regenerate target user code
+    target_user.friend_code = generate_friend_code()
+    
+    db.commit()
+    
+    increment_user_version(db, user.id)
+    increment_user_version(db, target_user.id)
+    
+    return {"message": "Friend added successfully. Friend code rotated."}
+
+@router.post("/{user_id}/friend-code/regenerate")
+def regenerate_friend_code(user_id: int, db: Session = Depends(get_db)):
+    """Regenerate friend code"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+         
+    user.friend_code = generate_friend_code()
+    db.commit()
+    db.refresh(user)
+    
+    increment_user_version(db, user.id)
+    
+    return {"friend_code": user.friend_code}
+
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     """Create a new user"""
@@ -169,6 +235,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         avatar_url=user.avatar_url,
         phone=user.phone,
         bio=user.bio,
+        friend_code=generate_friend_code(),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
     )

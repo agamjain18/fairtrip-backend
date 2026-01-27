@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import enum
 import os
 
-DATABASE_URL = "sqlite:///./fairshare.db"
+DATABASE_URL = "sqlite:///./fairshare_v2.db"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -72,6 +72,7 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     bio = Column(Text, nullable=True)
+    friend_code = Column(String, unique=True, index=True, nullable=True)
     
     # Settings
     two_factor_enabled = Column(Boolean, default=False)

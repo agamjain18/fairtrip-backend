@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database_sql import get_db, Expense, Trip, User, Dispute, expense_participants, increment_trip_members_version
+from database_sql import get_db, Expense, Trip, User, Dispute, expense_participants, increment_trip_members_version, Settlement
 from schemas_sql import Expense as ExpenseSchema, ExpenseCreate, ExpenseUpdate, User as UserSchema
 
 from datetime import datetime, timezone
@@ -202,9 +202,30 @@ def get_user_expense_summary(user_id: int, db: Session = Depends(get_db)):
             to_give += user_share
             balances[str(e.paid_by_id)] -= user_share
             
-    # For to_receive and to_give, we should ideally use netted balances
-    # but for a simple summary, raw sums are often shown first.
-    # Splitwise shows "You are owed" and "You owe" totals.
+    # Include Settlements
+    settlements = db.query(Settlement).filter(
+        (Settlement.from_user_id == user_id) | (Settlement.to_user_id == user_id)
+    ).all()
+    
+    for s in settlements:
+        if s.from_user_id == user_id:
+            # User paid someone (settled a debt)
+            # This increases the balance (less negative) with that person
+            balances[str(s.to_user_id)] += s.amount
+        elif s.to_user_id == user_id:
+            # Someone paid the user
+            # This decreases the balance (less positive) with that person
+            balances[str(s.from_user_id)] -= s.amount
+
+    # Recalculate totals from net balances
+    to_receive = 0.0
+    to_give = 0.0
+    
+    for uid, amount in balances.items():
+        if amount > 0:
+            to_receive += amount
+        elif amount < 0:
+            to_give += abs(amount)
     
     return {
         "total_spent": total_spent,

@@ -95,7 +95,6 @@ def send_welcome_email(email: str, name: str):
         msg['Subject'] = "Welcome to FairShare!"
 
         body = f"""
-        body = f"""
         <!DOCTYPE html>
         <html>
         <head>

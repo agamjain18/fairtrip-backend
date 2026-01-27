@@ -424,6 +424,7 @@ class Notification(NotificationBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    is_new_user: Optional[bool] = False
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None

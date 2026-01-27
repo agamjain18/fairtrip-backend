@@ -18,12 +18,12 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 # Security configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
 
 # Email configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "help.aam.online@gmail.com"
+SENDER_EMAIL = "help.agam.online@gmail.com"
 # The user should set this environment variable 'EMAIL_APP_PASSWORD' with a Gmail App Password
 SENDER_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "vjkp dmsb fvbw pfpt") # vjkp dmsb fvbw pfpt is a placeholder, REPLACE IT
 
@@ -84,6 +84,51 @@ def send_otp_email(email: str, otp: str):
         return True
     except Exception as e:
         print(f"Error sending email: {e}")
+        return False
+
+def send_welcome_email(email: str, name: str):
+    """Send Welcome Email via Gmail SMTP"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = email
+        msg['Subject'] = "Welcome to FairShare!"
+
+        body = f"""
+        <html>
+            <body style="font-family: sans-serif; color: #333;">
+                <div style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2 style="color: #4A9EFF;">Welcome to FairShare, {name}!</h2>
+                    <p>We are thrilled to have you on board.</p>
+                    <p>FairShare is your ultimate travel companion for splitting expenses, planning itineraries, and keeping memories safe.</p>
+                    
+                    <h3>Getting Started:</h3>
+                    <ul>
+                        <li><b>Plan Trips:</b> Create itineraries with real-time collaboration.</li>
+                        <li><b>Split Expenses:</b> Add expenses and let our AI handle the math.</li>
+                        <li><b>Secure Docs:</b> Keep your travel documents safe with biometric protection.</li>
+                    </ul>
+                    
+                    <p>If you have any questions or need assistance, feel free to reply to this email or contact us at {SENDER_EMAIL}.</p>
+                    
+                    <hr style="border: none; border-top: 1px solid #eee;" />
+                    <p style="font-size: 12px; color: #888;">FairShare - Travel together, split easily.</p>
+                </div>
+            </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(SENDER_EMAIL, email, text)
+        server.quit()
+        print(f"Welcome email sent to {email}")
+        return True
+    except Exception as e:
+        print(f"Error sending welcome email: {e}")
         return False
 
 def get_current_user_sql(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -255,7 +300,7 @@ def sync_check(current_user: User = Depends(get_current_user_sql)):
     return {"version": current_user.data_version or 1}
 
 @router.post("/social-login", response_model=Token)
-def social_login(social_data: SocialLoginRequest, db: Session = Depends(get_db)):
+def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Login/Register with Google or Apple"""
     import uuid
     
@@ -326,4 +371,20 @@ def social_login(social_data: SocialLoginRequest, db: Session = Depends(get_db))
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    is_new_user = False
+    
+    # Check if we just created the user (created_at is very recent, e.g., within last 10 seconds)
+    # Or strict check: if the user object was just added to session. 
+    # But since we commit and refresh, we can check a flag or infer from logs/context.
+    # Simpler: we printed "New user created" or "Existing user login".
+    # Let's enforce the logic:
+    
+    # Re-check if user was created just now.
+    # The variable user is fresh.
+    time_diff = datetime.now(timezone.utc) - user.created_at
+    if time_diff.total_seconds() < 10: # Assuming it was created in this request
+        is_new_user = True
+        # Send welcome email
+        background_tasks.add_task(send_welcome_email, user.email, user.full_name)
+    
+    return {"access_token": access_token, "token_type": "bearer", "is_new_user": is_new_user}

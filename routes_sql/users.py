@@ -263,6 +263,17 @@ def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get
     increment_user_version(db, user_id)
     return user
 
+@router.put("/fcm-token")
+def update_fcm_token(
+    token: str,
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
+):
+    """Update user's FCM token for push notifications"""
+    current_user.fcm_token = token
+    db.commit()
+    return {"message": "FCM token updated successfully"}
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: int, db: Session = Depends(get_db)):
     """Delete a user"""

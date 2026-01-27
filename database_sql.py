@@ -73,6 +73,7 @@ class User(Base):
     phone = Column(String, nullable=True)
     bio = Column(Text, nullable=True)
     friend_code = Column(String, unique=True, index=True, nullable=True)
+    fcm_token = Column(String, nullable=True)
     
     # Settings
     two_factor_enabled = Column(Boolean, default=False)

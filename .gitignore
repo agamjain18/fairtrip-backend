@@ -9,3 +9,5 @@ ENV/
 *.db
 uploads/
 .vscode/
+firebase-key.json
+*.json.key

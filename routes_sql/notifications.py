@@ -101,8 +101,9 @@ def send_notification_sql(
     notification_type: str = "system",
     action_url: Optional[str] = None
 ):
-    """Helper function to create a notification"""
+    """Helper function to create a notification and send push if available"""
     try:
+        # 1. Save to database for in-app history
         notification = Notification(
             user_id=user_id,
             title=title,
@@ -115,6 +116,22 @@ def send_notification_sql(
         db.add(notification)
         db.commit()
         db.refresh(notification)
+
+        # 2. Send Push Notification via Firebase
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.fcm_token and user.push_notifications:
+            from services.firebase_service import FirebaseService
+            FirebaseService.send_push_notification(
+                token=user.fcm_token,
+                title=title,
+                body=message,
+                data={
+                    "type": notification_type,
+                    "action_url": action_url or "",
+                    "notification_id": str(notification.id)
+                }
+            )
+
         return notification
     except Exception as e:
         print(f"Error sending notification: {e}")

@@ -16,6 +16,7 @@ requests
 beautifulsoup4
 xxhash
 httpx
+firebase-admin
 
 
 

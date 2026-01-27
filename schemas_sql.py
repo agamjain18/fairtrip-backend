@@ -113,6 +113,7 @@ class Trip(TripBase):
     total_spent: float
     budget_used_percentage: float
     member_count: Optional[int] = 0
+    user_balance: Optional[float] = 0.0
     creator_id: int
     created_at: datetime
     updated_at: datetime
@@ -351,6 +352,7 @@ class TransportBase(BaseModel):
     booking_reference: Optional[str] = None
     ticket_url: Optional[str] = None
     seat_number: Optional[str] = None
+    tracking_url: Optional[str] = None
     status: Optional[str] = "scheduled"
     cost: Optional[float] = 0.0
     notes: Optional[str] = None

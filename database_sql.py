@@ -403,6 +403,7 @@ class Transport(Base):
     booking_reference = Column(String, nullable=True)
     ticket_url = Column(String, nullable=True) # URL to uploaded ticket image/pdf
     seat_number = Column(String, nullable=True)
+    tracking_url = Column(String, nullable=True)
     
     status = Column(String, default="scheduled") # scheduled, on_time, delayed, cancelled, completed
     cost = Column(Float, default=0.0)

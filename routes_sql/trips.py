@@ -5,6 +5,7 @@ from typing import List, Optional
 from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version
 from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema
 from datetime import datetime, timezone
+from .expenses import get_user_balance_for_trip
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -18,6 +19,11 @@ def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db
         own_trips = db.query(Trip).filter(Trip.creator_id == user_id).offset(skip).limit(limit).all()
         # Combine and deduplicate
         all_trips = list({t.id: t for t in (trips + own_trips)}.values())
+        
+        # Calculate real-time balance for each trip
+        for trip in all_trips:
+            trip.user_balance = get_user_balance_for_trip(db, trip.id, user_id)
+            
         return all_trips
     else:
         trips = db.query(Trip).offset(skip).limit(limit).all()

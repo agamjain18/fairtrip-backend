@@ -250,10 +250,8 @@ def get_user_expense_summary(user_id: int, db: Session = Depends(get_db)):
 
 @router.get("/trip/{trip_id}/summary")
 def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Session = Depends(get_db)):
-
     """Get expense summary for a trip"""
     expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()
-    
     total_spent = sum(e.amount for e in expenses)
     
     summary = {
@@ -270,10 +268,24 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
         status = expense.status.value if expense.status else "pending"
         summary["by_status"][status] = summary["by_status"].get(status, 0) + 1
     
-    # Calculate balances for all members in the trip
+    member_balances = calculate_trip_balances(db, trip_id)
+    summary["member_balances"] = member_balances
+
+    if user_id:
+        summary["user_balance"] = member_balances.get(str(user_id), 0.0)
+        summary["user_paid"] = sum(e.amount for e in expenses if e.paid_by_id == user_id)
+        summary["user_share"] = sum(calculate_shares_sql(e).get(str(user_id), 0.0) for e in expenses)
+
+    return summary
+
+def calculate_trip_balances(db: Session, trip_id: int) -> dict:
+    """Helper to calculate net balances for all members in a trip"""
+    expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()
     member_balances = defaultdict(float)
-    trip_members = db.query(User).join(User.trips).filter(Trip.id == trip_id).all()
-    member_ids = [str(m.id) for m in trip_members]
+    
+    # Get all potential members (those in the trip)
+    trip_members_list = db.query(User).join(User.trips).filter(Trip.id == trip_id).all()
+    member_ids = [str(m.id) for m in trip_members_list]
     
     for e in expenses:
         shares = calculate_shares_sql(e)
@@ -283,7 +295,7 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
                 member_balances[pid] -= share
                 member_balances[paid_by_str] += share
     
-    # Add trip settlements to member balances (only completed ones)
+    # Add trip settlements (only completed ones)
     completed_settlements = db.query(Settlement).filter(
         Settlement.trip_id == trip_id,
         Settlement.status == "completed"
@@ -291,19 +303,13 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
     for s in completed_settlements:
         member_balances[str(s.from_user_id)] += s.amount
         member_balances[str(s.to_user_id)] -= s.amount
-    
-    summary["member_balances"] = member_balances
-
-    if user_id:
-        user_balance = member_balances.get(str(user_id), 0.0)
-        user_paid = sum(e.amount for e in expenses if e.paid_by_id == user_id)
-        user_share_total = sum(calculate_shares_sql(e).get(str(user_id), 0.0) for e in expenses)
         
-        summary["user_paid"] = user_paid
-        summary["user_share"] = user_share_total
-        summary["user_balance"] = user_balance
+    return member_balances
 
-    return summary
+def get_user_balance_for_trip(db: Session, trip_id: int, user_id: int) -> float:
+    """Helper to get a single user's balance for a trip"""
+    balances = calculate_trip_balances(db, trip_id)
+    return balances.get(str(user_id), 0.0)
 
 def calculate_shares_sql(expense: Expense) -> dict:
     shares = {}

@@ -21,7 +21,12 @@ class ETagMiddleware(BaseHTTPMiddleware):
             
         # Capture body
         response_body = [section async for section in response.body_iterator]
-        response.body_iterator = iter(response_body)
+        
+        # Reconstruct as async iterator to satisfy Starlette
+        async def async_generator():
+            for item in response_body:
+                yield item
+        response.body_iterator = async_generator()
         
         try:
             full_body = b"".join(response_body)
@@ -110,7 +115,8 @@ async def startup_event():
         print(f"Failed to auto-seed cities: {e}")
 
     print("SQLite Database initialized successfully!")
-    print("API Documentation available at: http://localhost:8000/docs")
+    port = os.getenv("PORT", "8000")
+    print(f"API Documentation available at: http://localhost:{port}/docs")
 
 
 if __name__ == "__main__":

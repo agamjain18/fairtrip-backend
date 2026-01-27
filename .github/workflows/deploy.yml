@@ -20,7 +20,7 @@ jobs:
           script: |
             # 1. Update system and install dependencies
             sudo apt-get update
-            sudo apt-get install -y python3-pip python3-venv git gnupg curl
+            sudo apt-get install -y python3-pip python3-venv git gnupg curl nginx
             
             # Install MongoDB if not present (system-wide)
             if ! command -v mongod &> /dev/null; then
@@ -95,8 +95,14 @@ jobs:
             # 6. Nginx Configuration
             echo "🔧 Configuring Nginx..."
             if [ -f "nginx-fairtrip.conf" ]; then
+              # Ensure directories exist
+              sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+              
               sudo cp nginx-fairtrip.conf /etc/nginx/sites-available/fairtrip
               sudo ln -sf /etc/nginx/sites-available/fairtrip /etc/nginx/sites-enabled/
+              
+              # Remove default site to avoid conflict on port 80
+              sudo rm -f /etc/nginx/sites-enabled/default
               
               # Test Nginx config
               if sudo nginx -t; then

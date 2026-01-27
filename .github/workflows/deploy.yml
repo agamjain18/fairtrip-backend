@@ -92,7 +92,23 @@ jobs:
             
             pm2 save
             
-            # 6. Local Health Check (Verification)
+            # 6. Nginx Configuration
+            echo "🔧 Configuring Nginx..."
+            if [ -f "nginx-fairtrip.conf" ]; then
+              sudo cp nginx-fairtrip.conf /etc/nginx/sites-available/fairtrip
+              sudo ln -sf /etc/nginx/sites-available/fairtrip /etc/nginx/sites-enabled/
+              
+              # Test Nginx config
+              if sudo nginx -t; then
+                sudo systemctl reload nginx
+                echo "✅ Nginx reloaded successfully"
+              else
+                echo "❌ Nginx configuration test failed"
+                exit 1
+              fi
+            fi
+
+            # 7. Local Health Check (Verification)
             echo "🔍 Verifying service is listening on port 8004..."
             sleep 10  # Increased wait time for startup
             if curl -s http://localhost:8004/health | grep -q "healthy"; then
@@ -100,8 +116,6 @@ jobs:
             else
                echo "⚠️ Health check failed or /health route missing. Checking logs:"
                pm2 logs fairshare-backend --lines 50 --nostream
-               
-               # Don't fail the build immediately, give it a moment or check if it's just slow
                exit 1
             fi
 

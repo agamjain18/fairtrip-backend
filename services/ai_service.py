@@ -9,7 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
 genai.configure(api_key=API_KEY)
 
-model = genai.GenerativeModel('gemini-flash-latest')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 # Database connection for caching images
 DATABASE_URL = "mongodb://localhost:27017"

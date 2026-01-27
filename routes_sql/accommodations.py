@@ -108,7 +108,7 @@ async def extract_metadata(request: UrlRequest):
     # Use the same API key as transports.py and ai_service.py
     API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
     print(f"Extracting metadata for URL: {request.url}")
 

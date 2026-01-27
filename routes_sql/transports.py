@@ -14,7 +14,7 @@ router = APIRouter(prefix="/transports", tags=["transports"])
 # Use the same API key as ai_service.py
 API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @router.get("/", response_model=List[TransportSchema])
 def get_transports(trip_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):

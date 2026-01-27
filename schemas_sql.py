@@ -467,6 +467,7 @@ class SettlementCreate(SettlementBase):
     trip_id: int
     from_user_id: int
     to_user_id: int
+    status: Optional[str] = "pending"
 
 class SettlementUpdate(BaseModel):
     status: Optional[str] = None

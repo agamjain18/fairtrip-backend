@@ -53,7 +53,7 @@ def create_settlement(settlement: SettlementCreate, background_tasks: Background
         payment_method=settlement.payment_method,
         payment_reference=settlement.payment_reference,
         notes=settlement.notes,
-        status="pending",
+        status=settlement.status or "pending",
         created_at=datetime.now(timezone.utc)
     )
     

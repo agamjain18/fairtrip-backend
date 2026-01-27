@@ -77,64 +77,90 @@ def extract_metadata(request: UrlRequest):
     import requests
     from bs4 import BeautifulSoup
     import re
+    import traceback
+
+    print(f"Extracting metadata for URL: {request.url}")
 
     try:
         # User-Agent is often required to avoid 403
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
         }
         
         # Follow redirects (often Google Maps short links redirect)
-        response = requests.get(request.url, headers=headers, timeout=10, allow_redirects=True)
+        session = requests.Session()
+        response = session.get(request.url, headers=headers, timeout=15, allow_redirects=True)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
         # 1. Title/Name
-        # Maps titles usually: "Place Name - Google Maps"
         title_tag = soup.title.string if soup.title else ""
-        name = title_tag.split(" - Google Maps")[0].split(" - ")[0].strip()
+        name = ""
         
-        # 2. Heuristics for Address and Phone (Meta tags are best)
-        # Open Graph tags
+        # Google Maps specific title parsing
+        if "Google Maps" in title_tag:
+            name = title_tag.split(" - Google Maps")[0].split(" - ")[0].strip()
+        else:
+            name = title_tag.strip()
+        
+        # Open Graph tags (often cleaner)
         og_title = soup.find("meta", property="og:title")
         if og_title and og_title.get("content"):
-             # Sometimes og:title is cleaner
-             name = og_title["content"].split("·")[0].strip()
+             name = og_title["content"].split("·")[0].split(" - ")[0].strip()
 
-        # Description often has "Place Name · Address · Phone"
-        og_desc = soup.find("meta", property="og:description")
-        description = og_desc["content"] if og_desc else ""
-        
-        address = ""
+        # 2. Phone Extraction
         phone = ""
+        # Try finding in meta tags first
+        og_desc = soup.find("meta", property="og:description")
+        description = og_desc["content"] if og_desc and og_desc.get("content") else ""
         
-        # Try to parse description if it looks unstructured
-        # Google often puts real address in og:image alt or schema
+        # Regex for international phone numbers
+        phone_regex = r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
         
-        # Simple extraction from description text if available
-        # This is highly variable, but better than nothing
         if description:
-             parts = description.split('·')
-             if len(parts) > 1:
-                # Often the last part is something else, middle might be address
-                # Heuristic: Address usually has numbers
-                pass
+            phone_match = re.search(phone_regex, description)
+            if phone_match:
+                phone = phone_match.group(0).strip()
 
-        # Regex for phone numbers (International or local)
-        # Matches +1-234-567-8900 or (123) 456-7890
-        phone_match = re.search(r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', response.text)
-        if phone_match:
-             phone = phone_match.group(0).strip()
+        if not phone:
+             # Search in the whole body text
+             phone_match = re.search(phone_regex, response.text)
+             if phone_match:
+                  phone = phone_match.group(0).strip()
+
+        # 3. Address Extraction
+        address = ""
+        # Often in meta description for places
+        if description and "·" in description:
+            parts = description.split('·')
+            # Heuristic: middle parts usually contains address
+            if len(parts) >= 2:
+                potential_address = parts[1].strip()
+                if any(char.isdigit() for char in potential_address):
+                    address = potential_address
+
+        # Check for specific JSON-LD or meta tags if available
+        meta_addr = soup.find("meta", property="business:contact_data:street_address")
+        if meta_addr and meta_addr.get("content"):
+            address = meta_addr["content"]
+
+        print(f"Extracted: Name='{name}', Phone='{phone}', Address='{address}'")
 
         return {
-            "name": name,
-            "address": address, # Address is hard to parse reliably without API, user can fill
+            "name": name or "",
+            "address": address or "",
             "contact_number": phone or "",
-            "notes": f"Extracted from {request.url}"
+            "notes": f"Auto-filled from: {request.url}"
         }
 
     except Exception as e:
-        print(f"Metadata extraction failed: {e}")
-        # Return empty on failure, don't crash
-        return {"name": "", "address": "", "contact_number": "", "notes": ""}
+        print(f"Metadata extraction failed: {str(e)}")
+        traceback.print_exc()
+        return {
+            "name": "", 
+            "address": "", 
+            "contact_number": "", 
+            "notes": f"Extraction failed: {str(e)}"
+        }

@@ -257,18 +257,35 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
         status = expense.status.value if expense.status else "pending"
         summary["by_status"][status] = summary["by_status"].get(status, 0) + 1
     
+    # Calculate balances for all members in the trip
+    member_balances = defaultdict(float)
+    trip_members = db.query(User).join(User.trips).filter(Trip.id == trip_id).all()
+    member_ids = [str(m.id) for m in trip_members]
+    
+    for e in expenses:
+        shares = calculate_shares_sql(e)
+        paid_by_str = str(e.paid_by_id)
+        for pid, share in shares.items():
+            if pid in member_ids:
+                member_balances[pid] -= share
+                member_balances[paid_by_str] += share
+    
+    # Add trip settlements to member balances
+    all_settlements = db.query(Settlement).filter(Settlement.trip_id == trip_id).all()
+    for s in all_settlements:
+        member_balances[str(s.from_user_id)] += s.amount
+        member_balances[str(s.to_user_id)] -= s.amount
+    
+    summary["member_balances"] = member_balances
+
     if user_id:
+        user_balance = member_balances.get(str(user_id), 0.0)
         user_paid = sum(e.amount for e in expenses if e.paid_by_id == user_id)
-        user_share_total = 0.0
-        
-        for e in expenses:
-            shares = calculate_shares_sql(e)
-            if str(user_id) in shares:
-                user_share_total += shares[str(user_id)]
+        user_share_total = sum(calculate_shares_sql(e).get(str(user_id), 0.0) for e in expenses)
         
         summary["user_paid"] = user_paid
         summary["user_share"] = user_share_total
-        summary["user_balance"] = user_paid - user_share_total
+        summary["user_balance"] = user_balance
 
     return summary
 

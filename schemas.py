@@ -58,6 +58,7 @@ class UserUpdate(BaseModel):
 
 class User(UserBase):
     id: PyObjectId  # Changed to str
+    friend_code: Optional[str] = None
     two_factor_enabled: bool
     biometric_enabled: bool
     dark_mode: bool
@@ -79,10 +80,12 @@ class TripBase(BaseModel):
     title: str
     description: Optional[str] = None
     destination: Optional[str] = None
+    start_location: Optional[str] = None
     image_url: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     total_budget: Optional[float] = 0.0
+    budget_type: Optional[str] = "total" # total, individual
     currency: Optional[str] = "USD"
     timezone: Optional[str] = None
     is_public: Optional[bool] = False
@@ -111,6 +114,7 @@ class Trip(TripBase):
     status: TripStatusEnum
     ai_status: Optional[str] = "pending"
     ai_progress: Optional[int] = 0
+    ai_status_message: Optional[str] = None
     total_spent: float
     budget_used_percentage: float
     creator_id: Optional[PyObjectId] = None # Changed to str

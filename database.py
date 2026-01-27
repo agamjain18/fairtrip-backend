@@ -43,6 +43,7 @@ class User(Document):
     avatar_url: Optional[str] = None
     phone: Optional[str] = None
     bio: Optional[str] = None
+    friend_code: Optional[Indexed(str, unique=True)] = None
     
     # Settings
     two_factor_enabled: bool = False
@@ -101,6 +102,7 @@ class Trip(Document):
     title: str
     description: Optional[str] = None
     destination: Optional[str] = None
+    start_location: Optional[str] = None
     image_url: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -108,6 +110,7 @@ class Trip(Document):
     
     # Financial
     total_budget: float = 0.0
+    budget_type: str = "total"
     total_spent: float = 0.0
     budget_used_percentage: float = 0.0
     
@@ -120,6 +123,7 @@ class Trip(Document):
     use_ai: bool = False
     ai_status: str = "pending" # pending, processing, completed, failed
     ai_progress: int = 0 # 0 to 100 percentage
+    ai_status_message: Optional[str] = None # Current step description
     itinerary_data: Optional[dict] = None  # Stores generated JSON itinerary
     
     creator: Link[User]

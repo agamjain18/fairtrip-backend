@@ -73,7 +73,7 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             return
 
         # Update status to processing (10%)
-        await trip.update({"$set": {"ai_status": "processing", "ai_progress": 10}})
+        await trip.update({"$set": {"ai_status": "processing", "ai_progress": 10, "ai_status_message": "Analyzing destination and preferences..."}})
         
         # Calculate duration
         start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
@@ -111,7 +111,7 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
         
         # 40% Progress - Text generated
         current_progress = 40
-        await trip.update({"$set": {"ai_progress": current_progress}})
+        await trip.update({"$set": {"ai_progress": current_progress, "ai_status_message": "Drafting your daily itinerary..."}})
 
         # Process and enhance with images
         top_places = result.get("top_places", [])
@@ -128,7 +128,10 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             
             # Increment progress
             current_progress += progress_step
-            await trip.update({"$set": {"ai_progress": min(95, current_progress)}})
+            await trip.update({"$set": {
+                "ai_progress": min(95, current_progress),
+                "ai_status_message": f"Finding best images for {place['name']}..."
+            }})
             
         result["top_places"] = enhanced_places
         
@@ -137,7 +140,8 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             "$set": {
                 "itinerary_data": result,
                 "ai_status": "completed",
-                "ai_progress": 100
+                "ai_progress": 100,
+                "ai_status_message": "Itinerary ready!"
             }
         })
         print(f"✅ AI Itinerary generated and saved for trip {trip_id}")
@@ -147,6 +151,6 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
         # Update status to failed
         trip = await Trip.get(trip_id)
         if trip:
-            await trip.update({"$set": {"ai_status": "failed"}})
+            await trip.update({"$set": {"ai_status": "failed", "ai_status_message": "Something went wrong."}})
 
 from datetime import datetime

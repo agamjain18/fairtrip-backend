@@ -3,6 +3,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from database_sql import init_db
 from routes_sql import auth, users, trips, expenses, cities, itinerary, checklist, misc_new
 from routes_sql import settlements, recurring_expenses, currency, notifications, sync
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response, ContentStream
+import xxhash
+import json
+
+class ETagMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.method != "GET":
+            return await call_next(request)
+
+        response = await call_next(request)
+
+        # Only standard JSON responses
+        if response.status_code != 200:
+            return response
+            
+        # Capture body
+        response_body = [section async for section in response.body_iterator]
+        response.body_iterator = iter(response_body)
+        
+        try:
+            full_body = b"".join(response_body)
+            # Create ETag (xxhash is fast)
+            etag = f'"{xxhash.xxh64(full_body).hexdigest()}"'
+            
+            # Check If-None-Match
+            if request.headers.get("if-none-match") == etag:
+                return Response(status_code=304)
+            
+            response.headers["ETag"] = etag
+        except:
+             pass
+             
+        return response
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -19,7 +53,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["ETag"], # Important for client to see ETag
 )
+
+app.add_middleware(ETagMiddleware)
 
 from fastapi.staticfiles import StaticFiles
 import os

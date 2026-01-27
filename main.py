@@ -126,7 +126,7 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8005))
     # Reload is handled by PM2 watch feature in production
     is_prod = os.getenv("ENV", "production") == "production"
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=not is_prod)

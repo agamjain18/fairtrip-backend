@@ -507,7 +507,14 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
     
     # Re-check if user was created just now.
     # The variable user is fresh.
-    time_diff = datetime.now(timezone.utc) - user.created_at
+    
+    # Ensure user.created_at is timezone-aware for comparison, or fallback
+    created_at = user.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+        
+    time_diff = datetime.now(timezone.utc) - created_at
+    
     if time_diff.total_seconds() < 10: # Assuming it was created in this request
         is_new_user = True
         # Send welcome email

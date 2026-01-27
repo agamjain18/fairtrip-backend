@@ -41,9 +41,10 @@ app.include_router(cities.router)
 app.include_router(itinerary.router)
 app.include_router(checklist.router)
 app.include_router(misc_new.router)
-from routes_sql import transports, accommodations
+from routes_sql import transports, accommodations, emergency
 app.include_router(transports.router)
 app.include_router(accommodations.router)
+app.include_router(emergency.router)
 
 @app.get("/")
 async def root():
@@ -62,6 +63,14 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    
+    # Auto-seed cities
+    try:
+        from seed_cities import seed_cities
+        seed_cities()
+    except Exception as e:
+        print(f"Failed to auto-seed cities: {e}")
+
     print("SQLite Database initialized successfully!")
     print("API Documentation available at: http://localhost:8000/docs")
 

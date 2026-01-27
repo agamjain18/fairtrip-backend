@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from database_sql import Settlement, Trip, User, get_db
+from .notifications import send_notification_sql
 from schemas_sql import Settlement as SettlementSchema, SettlementCreate, SettlementUpdate
 from datetime import datetime, timezone
 
@@ -65,6 +66,16 @@ def create_settlement(settlement: SettlementCreate, background_tasks: Background
     # Notify Receiver
     if to_user.email:
         background_tasks.add_task(send_settlement_email, to_user.email, from_user.full_name or from_user.username, settlement.amount, settlement.currency, trip.title)
+    
+    # In-app notification
+    send_notification_sql(
+        db,
+        user_id=settlement.to_user_id,
+        title="Payment Recorded",
+        message=f"{from_user.full_name or from_user.username} recorded a payment of {settlement.amount} {settlement.currency} for '{trip.title}'",
+        notification_type="settlement",
+        action_url=f"/trip/{trip.id}/expenses"
+    )
         
     return db_settlement
 
@@ -77,8 +88,24 @@ def update_settlement(settlement_id: int, settlement_update: SettlementUpdate, d
     
     update_data = settlement_update.dict(exclude_unset=True)
     
-    if update_data.get("status") == "completed" and settlement.status != "completed":
+    was_pending = settlement.status == "pending"
+    is_now_completed = update_data.get("status") == "completed"
+
+    if is_now_completed and was_pending:
         settlement.settled_at = datetime.now(timezone.utc)
+        
+        # Notify the Payer that it's been approved
+        to_user = db.query(User).filter(User.id == settlement.to_user_id).first()
+        trip = db.query(Trip).filter(Trip.id == settlement.trip_id).first()
+        
+        send_notification_sql(
+            db,
+            user_id=settlement.from_user_id,
+            title="Settlement Approved",
+            message=f"{to_user.full_name or to_user.username} approved your payment of {settlement.amount} {settlement.currency} for '{trip.title if trip else 'Trip'}'",
+            notification_type="settlement",
+            action_url=f"/trip/{settlement.trip_id}/expenses"
+        )
     
     for key, value in update_data.items():
         setattr(settlement, key, value)

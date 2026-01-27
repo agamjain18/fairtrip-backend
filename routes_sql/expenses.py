@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database_sql import get_db, Expense, Trip, User, Dispute, expense_participants, increment_trip_members_version, Settlement
+from .notifications import send_notification_sql
 from schemas_sql import Expense as ExpenseSchema, ExpenseCreate, ExpenseUpdate, User as UserSchema
 
 from datetime import datetime, timezone
@@ -72,6 +73,18 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
 
     # Real-time sync: increment version for all participants
     increment_trip_members_version(db, db_expense.trip_id)
+
+    # Notify participants
+    for participant in participants:
+        if participant.id != db_expense.paid_by_id:
+            send_notification_sql(
+                db,
+                user_id=participant.id,
+                title="New Expense Added",
+                message=f"{payer.full_name or payer.username} added '{db_expense.title}' ({db_expense.amount} {db_expense.currency}) to '{trip.title}'",
+                notification_type="expense",
+                action_url=f"/trip/{trip.id}/expenses"
+            )
 
     return db_expense
 
@@ -270,9 +283,12 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
                 member_balances[pid] -= share
                 member_balances[paid_by_str] += share
     
-    # Add trip settlements to member balances
-    all_settlements = db.query(Settlement).filter(Settlement.trip_id == trip_id).all()
-    for s in all_settlements:
+    # Add trip settlements to member balances (only completed ones)
+    completed_settlements = db.query(Settlement).filter(
+        Settlement.trip_id == trip_id,
+        Settlement.status == "completed"
+    ).all()
+    for s in completed_settlements:
         member_balances[str(s.from_user_id)] += s.amount
         member_balances[str(s.to_user_id)] -= s.amount
     

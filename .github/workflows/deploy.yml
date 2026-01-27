@@ -74,22 +74,22 @@ jobs:
             # We use the venv python interpreter
             INTERPRETER="$PROJECT_DIR/venv/bin/python"
             
-            # Check if app is already running in PM2
+            cd "$PROJECT_DIR"
+            
             if pm2 list | grep -q "fairshare-backend"; then
-                echo "♻️ Restarting existing PM2 process..."
-                pm2 restart fairshare-backend
-            else
-                echo "🚀 Starting new PM2 process..."
-                # Run main.py which starts uvicorn on port 8000
-                cd "$PROJECT_DIR"
-                pm2 start main.py --name fairshare-backend --interpreter "$INTERPRETER"
+                echo "♻️ Deleting old PM2 process to ensure clean start..."
+                pm2 delete fairshare-backend
             fi
+            
+            echo "🚀 Starting new PM2 process with explicit interpreter..."
+            # Execute python directly and pass main.py as argument
+            pm2 start "$INTERPRETER" --name fairshare-backend -- main.py
             
             pm2 save
             
             # 6. Local Health Check (Verification)
             echo "🔍 Verifying service is listening on port 8000..."
-            sleep 5
+            sleep 10  # Increased wait time for startup
             if curl -s http://localhost:8000/health | grep -q "healthy"; then
                echo "✅ Backend is responding correctly on localhost:8000"
             else

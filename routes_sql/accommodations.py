@@ -77,90 +77,66 @@ def extract_metadata(request: UrlRequest):
     import requests
     from bs4 import BeautifulSoup
     import re
-    import traceback
+    import json
 
     print(f"Extracting metadata for URL: {request.url}")
 
     try:
-        # User-Agent is often required to avoid 403
+        # User-Agent to avoid 403
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
         }
         
-        # Follow redirects (often Google Maps short links redirect)
         session = requests.Session()
-        response = session.get(request.url, headers=headers, timeout=15, allow_redirects=True)
+        response = session.get(request.url, headers=headers, timeout=12, allow_redirects=True)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 1. Title/Name
-        title_tag = soup.title.string if soup.title else ""
-        name = ""
-        
-        # Google Maps specific title parsing
-        if "Google Maps" in title_tag:
-            name = title_tag.split(" - Google Maps")[0].split(" - ")[0].strip()
-        else:
-            name = title_tag.strip()
-        
-        # Open Graph tags (often cleaner)
-        og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-             name = og_title["content"].split("·")[0].split(" - ")[0].strip()
+        name, address, phone = "", "", ""
 
-        # 2. Phone Extraction
-        phone = ""
-        # Try finding in meta tags first
+        # 1. Title Parsing
+        title_tag = soup.title.string if soup.title else ""
+        if title_tag:
+            name = title_tag.split(" - Google Maps")[0].split(" - ")[0].split("·")[0].strip()
+
+        # 2. Meta Description Parsing
         og_desc = soup.find("meta", property="og:description")
         description = og_desc["content"] if og_desc and og_desc.get("content") else ""
         
-        # Regex for international phone numbers
-        phone_regex = r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
-        
-        if description:
-            phone_match = re.search(phone_regex, description)
-            if phone_match:
-                phone = phone_match.group(0).strip()
-
-        if not phone:
-             # Search in the whole body text
-             phone_match = re.search(phone_regex, response.text)
-             if phone_match:
-                  phone = phone_match.group(0).strip()
-
-        # 3. Address Extraction
-        address = ""
-        # Often in meta description for places
         if description and "·" in description:
-            parts = description.split('·')
-            # Heuristic: middle parts usually contains address
-            if len(parts) >= 2:
-                potential_address = parts[1].strip()
-                if any(char.isdigit() for char in potential_address):
-                    address = potential_address
+            parts = [p.strip() for p in description.split('·')]
+            phone_regex = r'(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
+            for part in parts:
+                if re.search(phone_regex, part):
+                    phone = part
+                elif any(char.isdigit() for char in part) and len(part) > 8:
+                    if not address: address = part
 
-        # Check for specific JSON-LD or meta tags if available
-        meta_addr = soup.find("meta", property="business:contact_data:street_address")
-        if meta_addr and meta_addr.get("content"):
-            address = meta_addr["content"]
-
-        print(f"Extracted: Name='{name}', Phone='{phone}', Address='{address}'")
+        # 3. JSON-LD fallback
+        scripts = soup.find_all('script', type='application/ld+json')
+        for script in scripts:
+            try:
+                data = json.loads(script.string)
+                if isinstance(data, dict):
+                    if data.get("@type") in ["Hotel", "LodgingBusiness", "Place", "LocalBusiness"]:
+                        if not name: name = data.get("name")
+                        if not phone: phone = data.get("telephone")
+                        if not address:
+                            addr = data.get("address")
+                            if isinstance(addr, dict):
+                                address = f"{addr.get('streetAddress', '')}, {addr.get('addressLocality', '')}"
+                            elif isinstance(addr, str):
+                                address = addr
+            except: continue
 
         return {
             "name": name or "",
             "address": address or "",
             "contact_number": phone or "",
-            "notes": f"Auto-filled from: {request.url}"
+            "notes": f"Sync: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         }
 
     except Exception as e:
-        print(f"Metadata extraction failed: {str(e)}")
-        traceback.print_exc()
-        return {
-            "name": "", 
-            "address": "", 
-            "contact_number": "", 
-            "notes": f"Extraction failed: {str(e)}"
-        }
+        print(f"Extraction failed: {str(e)}")
+        return {"name": "", "address": "", "contact_number": "", "notes": f"Auto-fill failed: {str(e)}"}

@@ -57,6 +57,7 @@ jobs:
             echo "MONGODB_URI=mongodb://localhost:27017" > .env
             echo "DATABASE_NAME=fairshare" >> .env
             echo "ROOT_PATH=/fairtrip" >> .env
+            echo "PORT=8004" >> .env
             
             # 5. PM2 Configuration
             # Install Node.js and PM2 if missing
@@ -76,10 +77,8 @@ jobs:
             
             cd "$PROJECT_DIR"
             
-            # Ensure port 8000 is free
-            echo "🧹 ensuring port 8000 is free..."
-            sudo fuser -k 8000/tcp || true
-            sleep 2
+            # Export PORT so PM2 picks it up
+            export PORT=8004
             
             if pm2 list | grep -q "fairshare-backend"; then
                 echo "♻️ Deleting old PM2 process to ensure clean start..."
@@ -88,15 +87,16 @@ jobs:
             
             echo "🚀 Starting new PM2 process with explicit interpreter..."
             # Execute python directly and pass main.py as argument
+            # PM2 will inherit the exported PORT env var
             pm2 start "$INTERPRETER" --name fairshare-backend -- main.py
             
             pm2 save
             
             # 6. Local Health Check (Verification)
-            echo "🔍 Verifying service is listening on port 8000..."
+            echo "🔍 Verifying service is listening on port 8004..."
             sleep 10  # Increased wait time for startup
-            if curl -s http://localhost:8000/health | grep -q "healthy"; then
-               echo "✅ Backend is responding correctly on localhost:8000"
+            if curl -s http://localhost:8004/health | grep -q "healthy"; then
+               echo "✅ Backend is responding correctly on localhost:8004"
             else
                echo "⚠️ Health check failed or /health route missing. Checking logs:"
                pm2 logs fairshare-backend --lines 50 --nostream

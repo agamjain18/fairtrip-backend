@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from database_sql import get_db, ChecklistItem, User, Trip
+from .notifications import send_notification_sql
+from database_sql import get_db, ChecklistItem, User, Trip, increment_trip_members_version
 from schemas_sql import ChecklistItem as ChecklistItemSchema, ChecklistItemCreate, ChecklistItemUpdate
 from datetime import datetime, timezone
 
@@ -46,6 +47,21 @@ def create_checklist_item(item: ChecklistItemCreate, db: Session = Depends(get_d
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
+    
+    # Real-time sync
+    increment_trip_members_version(db, db_item.trip_id)
+
+    # Notify assignees
+    for assignee in assignees:
+        send_notification_sql(
+            db,
+            user_id=assignee.id,
+            title="Task Assigned",
+            message=f"You've been assigned to: {db_item.title} in '{trip.title}'",
+            notification_type="system",
+            action_url=f"/trip/{trip.id}/checklist"
+        )
+
     return db_item
 
 @router.put("/{item_id}", response_model=ChecklistItemSchema)
@@ -69,6 +85,9 @@ def update_checklist_item(item_id: int, item_update: ChecklistItemUpdate, db: Se
     item.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(item)
+    
+    # Real-time sync
+    increment_trip_members_version(db, item.trip_id)
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -78,8 +97,12 @@ def delete_checklist_item(item_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Checklist item not found")
     
+    trip_id = item.trip_id
     db.delete(item)
     db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
     return None
 
 @router.post("/{item_id}/toggle")
@@ -95,6 +118,9 @@ def toggle_checklist_item(item_id: int, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(item)
+    
+    # Real-time sync
+    increment_trip_members_version(db, item.trip_id)
     return item
 
 @router.get("/trip/{trip_id}/summary")

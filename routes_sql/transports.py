@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database_sql import get_db, Transport, Trip
+from database_sql import get_db, Transport, Trip, increment_trip_members_version
 from schemas_sql import Transport as TransportSchema, TransportCreate
 from datetime import datetime, timezone
 import os
@@ -62,6 +62,9 @@ def create_transport(transport: TransportCreate, db: Session = Depends(get_db)):
     db.add(db_transport)
     db.commit()
     db.refresh(db_transport)
+    
+    # Real-time sync
+    increment_trip_members_version(db, db_transport.trip_id)
     return db_transport
 
 @router.post("/extract-pdf")
@@ -134,6 +137,10 @@ def delete_transport(transport_id: int, db: Session = Depends(get_db)):
     if not transport:
         raise HTTPException(status_code=404, detail="Transport not found")
     
+    trip_id = transport.trip_id
     db.delete(transport)
     db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
     return None

@@ -1,14 +1,56 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import shutil
+import os
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from utils.email_service import send_friend_added_email
 from sqlalchemy.orm import Session
 from typing import List
 import bcrypt
-from database_sql import get_db, User, Friendship, UserSession, PaymentMethod
+from database_sql import get_db, User, Friendship, UserSession, PaymentMethod, increment_user_version
+from .notifications import send_notification_sql
 from schemas_sql import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate
 from datetime import datetime, timezone
 from routes_sql.auth import get_current_user_sql
 
-router = APIRouter(prefix="/users", tags=["users"])
+UPLOAD_DIRECTORY = "uploads"
+if not os.path.exists(UPLOAD_DIRECTORY):
+    os.makedirs(UPLOAD_DIRECTORY)
+
+@router.post("/upload-avatar")
+def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
+):
+    """Upload/Update user avatar"""
+    try:
+        # Validate file
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Create unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"avatar_{current_user.id}_{timestamp}_{file.filename}"
+        file_path = os.path.join(UPLOAD_DIRECTORY, filename)
+
+        # Save file to disk
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Generate URL
+        url = f"/static/{filename}"
+
+        # Update user record
+        current_user.avatar_url = url
+        db.commit()
+        db.refresh(current_user)
+        
+        # Real-time sync
+        increment_user_version(db, current_user.id)
+
+        return {"url": url, "message": "Avatar updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def hash_password(password: str) -> str:
     password_bytes = password.encode('utf-8')
@@ -73,6 +115,11 @@ def add_friend(friend_id: int, background_tasks: BackgroundTasks, current_user: 
         else:
             existing.status = "accepted"
             db.commit()
+            
+            # Real-time sync
+            increment_user_version(db, current_user.id)
+            increment_user_version(db, friend_id)
+            
             return {"message": "Friendship accepted"}
             
     new_friendship = Friendship(
@@ -83,10 +130,23 @@ def add_friend(friend_id: int, background_tasks: BackgroundTasks, current_user: 
     db.add(new_friendship)
     db.commit()
     
+    # Real-time sync
+    increment_user_version(db, current_user.id)
+    increment_user_version(db, friend_id)
+    
     # Notify friend
     friend_user = db.query(User).filter(User.id == friend_id).first()
-    if friend_user and friend_user.email:
-        background_tasks.add_task(send_friend_added_email, friend_user.email, current_user.full_name or current_user.username)
+    if friend_user:
+        send_notification_sql(
+            db,
+            user_id=friend_id,
+            title="New Friend Added",
+            message=f"{current_user.full_name or current_user.username} added you as a friend!",
+            notification_type="friend",
+            action_url="/friends"
+        )
+        if friend_user.email:
+            background_tasks.add_task(send_friend_added_email, friend_user.email, current_user.full_name or current_user.username)
         
     return {"message": "Friend added successfully"}
 
@@ -129,6 +189,9 @@ def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get
     
     db.commit()
     db.refresh(user)
+    
+    # Real-time sync
+    increment_user_version(db, user_id)
     return user
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

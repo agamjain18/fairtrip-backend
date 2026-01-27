@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database_sql import get_db, Accommodation, Trip
+from database_sql import get_db, Accommodation, Trip, increment_trip_members_version
 from schemas_sql import Accommodation as AccommodationSchema, AccommodationCreate
 from datetime import datetime, timezone
 
@@ -51,6 +51,9 @@ def create_accommodation(accommodation: AccommodationCreate, db: Session = Depen
     db.add(db_accommodation)
     db.commit()
     db.refresh(db_accommodation)
+    
+    # Real-time sync
+    increment_trip_members_version(db, db_accommodation.trip_id)
     return db_accommodation
 
 @router.put("/{accommodation_id}", response_model=AccommodationSchema)
@@ -76,6 +79,9 @@ def update_accommodation(accommodation_id: int, accommodation: AccommodationCrea
     
     db.commit()
     db.refresh(db_accommodation)
+    
+    # Real-time sync
+    increment_trip_members_version(db, db_accommodation.trip_id)
     return db_accommodation
 
 @router.delete("/{accommodation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -85,8 +91,12 @@ def delete_accommodation(accommodation_id: int, db: Session = Depends(get_db)):
     if not accommodation:
         raise HTTPException(status_code=404, detail="Accommodation not found")
     
+    trip_id = accommodation.trip_id
     db.delete(accommodation)
     db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
     return None
 
 from pydantic import BaseModel

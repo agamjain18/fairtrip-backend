@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database_sql import init_db
 from routes_sql import auth, users, trips, expenses, cities, itinerary, checklist, misc_new
-from routes_sql import settlements, recurring_expenses, currency, notifications
+from routes_sql import settlements, recurring_expenses, currency, notifications, sync
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -37,6 +37,7 @@ app.include_router(settlements.router)
 app.include_router(recurring_expenses.router)
 app.include_router(currency.router)
 app.include_router(notifications.router)
+app.include_router(sync.router)
 app.include_router(cities.router)
 app.include_router(itinerary.router)
 app.include_router(checklist.router)

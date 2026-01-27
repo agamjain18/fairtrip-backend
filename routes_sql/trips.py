@@ -79,6 +79,9 @@ def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get
     db_trip.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_trip)
+    
+    # Real-time sync: notify all members
+    increment_trip_members_version(db, trip_id)
     return db_trip
 
 @router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,8 +134,22 @@ def add_trip_member(trip_id: int, user_id: int, background_tasks: BackgroundTask
     increment_trip_members_version(db, trip_id)
     
     # Notify added member
+    inviter_name = "A friend"
+    if current_user_id:
+        inviter = db.query(User).filter(User.id == current_user_id).first()
+        if inviter:
+            inviter_name = inviter.full_name or inviter.username
+
+    send_notification_sql(
+        db,
+        user_id=user_id,
+        title="Added to Trip",
+        message=f"{inviter_name} added you to the trip '{trip.title}'",
+        notification_type="trip",
+        action_url=f"/trip/{trip.id}"
+    )
+
     if user.email:
-        inviter_name = "A friend"
         background_tasks.add_task(send_trip_invitation_email, user.email, inviter_name, trip.title)
 
     return {"message": "Member added successfully"}

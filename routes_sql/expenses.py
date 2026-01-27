@@ -113,6 +113,9 @@ def update_expense(expense_id: int, expense_update: ExpenseUpdate, db: Session =
     
     db.commit()
     db.refresh(expense)
+    
+    # Real-time sync
+    increment_trip_members_version(db, expense.trip_id)
     return expense
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -128,8 +131,12 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
         if trip.total_budget > 0:
             trip.budget_used_percentage = (trip.total_spent / trip.total_budget) * 100
     
+    trip_id = expense.trip_id
     db.delete(expense)
     db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
     return None
 
 @router.get("/{expense_id}/participants", response_model=List[UserSchema])
@@ -240,12 +247,20 @@ def get_user_expense_summary(user_id: int, db: Session = Depends(get_db)):
         elif amount < 0:
             to_give += abs(amount)
     
+    # Fetch names for all users in balances
+    friend_ids = [int(uid) for uid in balances.keys()]
+    friend_names = {}
+    if friend_ids:
+        friends = db.query(User).filter(User.id.in_(friend_ids)).all()
+        friend_names = {str(f.id): (f.full_name or f.username) for f in friends}
+
     return {
         "total_spent": total_spent,
         "to_receive": to_receive,
         "to_give": to_give,
         "total_balance": to_receive - to_give,
-        "friend_balances": balances
+        "friend_balances": balances,
+        "friend_names": friend_names
     }
 
 @router.get("/trip/{trip_id}/summary")
@@ -276,7 +291,28 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
         summary["user_paid"] = sum(e.amount for e in expenses if e.paid_by_id == user_id)
         summary["user_share"] = sum(calculate_shares_sql(e).get(str(user_id), 0.0) for e in expenses)
 
+    # Member names mapping
+    trip_members_list = db.query(User).join(User.trips).filter(Trip.id == trip_id).all()
+    summary["member_names"] = {str(m.id): (m.full_name or m.username) for m in trip_members_list}
+
     return summary
+
+@router.get("/trip/{trip_id}/daily-analytics")
+def get_trip_daily_analytics(trip_id: int, db: Session = Depends(get_db)):
+    """Get daily spending trend for a trip"""
+    expenses = db.query(Expense).filter(Expense.trip_id == trip_id).order_by(Expense.expense_date).all()
+    
+    daily_spend = defaultdict(float)
+    for e in expenses:
+        date_str = e.expense_date.strftime("%Y-%m-%d")
+        daily_spend[date_str] += e.amount
+        
+    # Format as list of objects for easier chart parsing
+    result = []
+    for date, amount in sorted(daily_spend.items()):
+        result.append({"date": date, "amount": amount})
+        
+    return result
 
 def calculate_trip_balances(db: Session, trip_id: int) -> dict:
     """Helper to calculate net balances for all members in a trip"""

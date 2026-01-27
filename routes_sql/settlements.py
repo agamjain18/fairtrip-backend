@@ -3,7 +3,7 @@ from utils.email_service import send_settlement_email
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from database_sql import Settlement, Trip, User, get_db
+from database_sql import Settlement, Trip, User, get_db, increment_trip_members_version
 from .notifications import send_notification_sql
 from schemas_sql import Settlement as SettlementSchema, SettlementCreate, SettlementUpdate
 from datetime import datetime, timezone
@@ -61,8 +61,10 @@ def create_settlement(settlement: SettlementCreate, background_tasks: Background
     db.add(db_settlement)
     db.commit()
     db.refresh(db_settlement)
-    db.refresh(db_settlement)
     
+    # Real-time sync
+    increment_trip_members_version(db, db_settlement.trip_id)
+        
     # Notify Receiver
     if to_user.email:
         background_tasks.add_task(send_settlement_email, to_user.email, from_user.full_name or from_user.username, settlement.amount, settlement.currency, trip.title)
@@ -112,6 +114,9 @@ def update_settlement(settlement_id: int, settlement_update: SettlementUpdate, d
         
     db.commit()
     db.refresh(settlement)
+    
+    # Real-time sync
+    increment_trip_members_version(db, settlement.trip_id)
     return settlement
 
 @router.delete("/{settlement_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -121,8 +126,12 @@ def delete_settlement(settlement_id: int, db: Session = Depends(get_db)):
     if not settlement:
         raise HTTPException(status_code=404, detail="Settlement not found")
     
+    trip_id = settlement.trip_id
     db.delete(settlement)
     db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
     return None
 
 @router.get("/trip/{trip_id}/pending", response_model=List[SettlementSchema])

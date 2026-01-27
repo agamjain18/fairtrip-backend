@@ -429,10 +429,10 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
     import uuid
     
     # Validate provider
-    if social_data.provider not in ["google", "apple"]:
+    if social_data.provider not in ["google", "apple", "github"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid provider. Must be 'google' or 'apple'"
+            detail="Invalid provider. Must be 'google', 'apple', or 'github'"
         )
     
     # Validate email is provided
@@ -480,6 +480,8 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
             print(f"New user created: {social_data.email} via {social_data.provider}")
         except Exception as e:
             db.rollback()
+            import traceback
+            traceback.print_exc()
             print(f"Error creating user: {str(e)}")
             # Try to find user again in case of race condition
             user = db.query(User).filter(User.email == social_data.email).first()

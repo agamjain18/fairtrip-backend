@@ -41,6 +41,9 @@ app.include_router(cities.router)
 app.include_router(itinerary.router)
 app.include_router(checklist.router)
 app.include_router(misc_new.router)
+from routes_sql import transports, accommodations
+app.include_router(transports.router)
+app.include_router(accommodations.router)
 
 @app.get("/")
 async def root():

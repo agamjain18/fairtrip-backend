@@ -324,6 +324,7 @@ class AccommodationBase(BaseModel):
     cost: Optional[float] = None
     contact_number: Optional[str] = None
     notes: Optional[str] = None
+    google_maps_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -338,27 +339,30 @@ class Accommodation(AccommodationBase):
     class Config:
         from_attributes = True
 
-# Flight Schemas
-class FlightBase(BaseModel):
-    airline: Optional[str] = None
+# Transport Schemas
+class TransportBase(BaseModel):
+    type: Optional[str] = "flight"
+    carrier: Optional[str] = None
     flight_number: Optional[str] = None
-    departure_airport: Optional[str] = None
-    arrival_airport: Optional[str] = None
+    departure_location: Optional[str] = None
+    arrival_location: Optional[str] = None
     departure_time: Optional[datetime] = None
     arrival_time: Optional[datetime] = None
     booking_reference: Optional[str] = None
+    ticket_url: Optional[str] = None
     seat_number: Optional[str] = None
-    gate: Optional[str] = None
-    terminal: Optional[str] = None
     status: Optional[str] = "scheduled"
+    cost: Optional[float] = 0.0
+    notes: Optional[str] = None
 
-class FlightCreate(FlightBase):
+class TransportCreate(TransportBase):
     trip_id: int
 
-class Flight(FlightBase):
+class Transport(TransportBase):
     id: int
     trip_id: int
     created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True

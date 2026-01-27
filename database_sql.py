@@ -187,7 +187,7 @@ class Trip(Base):
     polls = relationship("Poll", back_populates="trip")
     bucket_list_items = relationship("BucketListItem", back_populates="trip")
     accommodations = relationship("Accommodation", back_populates="trip")
-    flights = relationship("Flight", back_populates="trip")
+    transports = relationship("Transport", back_populates="trip")
     settlements = relationship("Settlement", back_populates="trip")
 
 class Expense(Base):
@@ -379,6 +379,7 @@ class Accommodation(Base):
     contact_number = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     
+    google_maps_url = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     
@@ -386,27 +387,31 @@ class Accommodation(Base):
 
     trip = relationship("Trip", back_populates="accommodations")
 
-class Flight(Base):
-    __tablename__ = "flights"
+class Transport(Base):
+    __tablename__ = "transports"
     id = Column(Integer, primary_key=True, index=True)
     trip_id = Column(Integer, ForeignKey("trips.id"))
-    airline = Column(String, nullable=True)
-    flight_number = Column(String, nullable=True)
+    type = Column(String, default="flight") # flight, train, bus, car_rental, taxi, boat, other
+    carrier = Column(String, nullable=True) # Airline, Bus Company, etc.
+    flight_number = Column(String, nullable=True) # Or any vehicle number
     
-    departure_airport = Column(String, nullable=True)
-    arrival_airport = Column(String, nullable=True)
+    departure_location = Column(String, nullable=True) # Airport code, Station name, etc.
+    arrival_location = Column(String, nullable=True)
     departure_time = Column(DateTime, nullable=True)
     arrival_time = Column(DateTime, nullable=True)
     
     booking_reference = Column(String, nullable=True)
+    ticket_url = Column(String, nullable=True) # URL to uploaded ticket image/pdf
     seat_number = Column(String, nullable=True)
-    gate = Column(String, nullable=True)
-    terminal = Column(String, nullable=True)
-    status = Column(String, default="scheduled") # scheduled, boarding, departed, arrived, delayed, cancelled
+    
+    status = Column(String, default="scheduled") # scheduled, on_time, delayed, cancelled, completed
+    cost = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    trip = relationship("Trip", back_populates="flights")
+    trip = relationship("Trip", back_populates="transports")
 
 class Transaction(Base):
     __tablename__ = "transactions"

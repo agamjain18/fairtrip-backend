@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
+from utils.email_service import send_settlement_email
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -31,7 +32,7 @@ def get_settlement(settlement_id: int, db: Session = Depends(get_db)):
     return settlement
 
 @router.post("/", response_model=SettlementSchema, status_code=status.HTTP_201_CREATED)
-def create_settlement(settlement: SettlementCreate, db: Session = Depends(get_db)):
+def create_settlement(settlement: SettlementCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create a new settlement record"""
     trip = db.query(Trip).filter(Trip.id == settlement.trip_id).first()
     if not trip:
@@ -59,6 +60,12 @@ def create_settlement(settlement: SettlementCreate, db: Session = Depends(get_db
     db.add(db_settlement)
     db.commit()
     db.refresh(db_settlement)
+    db.refresh(db_settlement)
+    
+    # Notify Receiver
+    if to_user.email:
+        background_tasks.add_task(send_settlement_email, to_user.email, from_user.full_name or from_user.username, settlement.amount, settlement.currency, trip.title)
+        
     return db_settlement
 
 @router.put("/{settlement_id}", response_model=SettlementSchema)

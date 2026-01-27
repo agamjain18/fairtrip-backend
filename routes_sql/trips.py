@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from utils.email_service import send_trip_created_email, send_trip_invitation_email, send_trip_deleted_email
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version
@@ -31,7 +32,7 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
     return trip
 
 @router.post("/", response_model=TripSchema, status_code=status.HTTP_201_CREATED)
-def create_trip(trip: TripCreate, creator_id: int, db: Session = Depends(get_db)):
+def create_trip(trip: TripCreate, creator_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create a new trip"""
     user = db.query(User).filter(User.id == creator_id).first()
     if not user:
@@ -50,6 +51,12 @@ def create_trip(trip: TripCreate, creator_id: int, db: Session = Depends(get_db)
     db.add(db_trip)
     db.commit()
     db.refresh(db_trip)
+    db.refresh(db_trip)
+    
+    # Send creation email
+    if user.email:
+        background_tasks.add_task(send_trip_created_email, user.email, user.full_name or user.username, db_trip.title)
+        
     return db_trip
 
 @router.put("/{trip_id}", response_model=TripSchema)
@@ -69,14 +76,24 @@ def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get
     return db_trip
 
 @router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_trip(trip_id: int, db: Session = Depends(get_db)):
+def delete_trip(trip_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Delete a trip"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     
     db.delete(trip)
+    db.delete(trip)
+    
+    # Notify members about deletion before commit (fetching members first)
+    members_to_notify = [(m.email, m.full_name or m.username) for m in trip.members if m.email]
+    trip_title = trip.title
+    
     db.commit()
+    
+    for email, name in members_to_notify:
+        background_tasks.add_task(send_trip_deleted_email, email, name, trip_title)
+        
     return None
 
 @router.get("/{trip_id}/members", response_model=List[UserSchema])
@@ -88,7 +105,7 @@ def get_trip_members(trip_id: int, db: Session = Depends(get_db)):
     return trip.members
 
 @router.post("/{trip_id}/members/{user_id}")
-def add_trip_member(trip_id: int, user_id: int, db: Session = Depends(get_db)):
+def add_trip_member(trip_id: int, user_id: int, background_tasks: BackgroundTasks, current_user_id: Optional[int] = None, db: Session = Depends(get_db)):
     """Add a member to a trip"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
@@ -107,6 +124,11 @@ def add_trip_member(trip_id: int, user_id: int, db: Session = Depends(get_db)):
     # Real-time sync: notify all members
     increment_trip_members_version(db, trip_id)
     
+    # Notify added member
+    if user.email:
+        inviter_name = "A friend"
+        background_tasks.add_task(send_trip_invitation_email, user.email, inviter_name, trip.title)
+
     return {"message": "Member added successfully"}
 
 @router.delete("/{trip_id}/members/{user_id}")

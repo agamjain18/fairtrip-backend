@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from utils.email_service import send_friend_added_email
 from sqlalchemy.orm import Session
 from typing import List
 import bcrypt
@@ -55,7 +56,7 @@ def get_user_friends(user_id: int, db: Session = Depends(get_db)):
     return friends
 
 @router.post("/friends/{friend_id}/add")
-def add_friend(friend_id: int, current_user: User = Depends(get_current_user_sql), db: Session = Depends(get_db)):
+def add_friend(friend_id: int, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user_sql), db: Session = Depends(get_db)):
     """Add a friend (mutual acceptance by default for simplicity)"""
     if friend_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot friend yourself")
@@ -81,6 +82,12 @@ def add_friend(friend_id: int, current_user: User = Depends(get_current_user_sql
     )
     db.add(new_friendship)
     db.commit()
+    
+    # Notify friend
+    friend_user = db.query(User).filter(User.id == friend_id).first()
+    if friend_user and friend_user.email:
+        background_tasks.add_task(send_friend_added_email, friend_user.email, current_user.full_name or current_user.username)
+        
     return {"message": "Friend added successfully"}
 
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)

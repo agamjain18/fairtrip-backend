@@ -65,6 +65,11 @@ app.add_middleware(ETagMiddleware)
 
 from fastapi.staticfiles import StaticFiles
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 UPLOAD_DIRECTORY = "uploads"
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
@@ -122,4 +127,6 @@ async def startup_event():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    # Reload is handled by PM2 watch feature in production
+    is_prod = os.getenv("ENV", "production") == "production"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=not is_prod)

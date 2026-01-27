@@ -104,13 +104,23 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         """
 
         response = model.generate_content([gemini_file, prompt])
-        text = response.text.replace('```json', '').replace('```', '').strip()
-        data = json.loads(text)
+        text = response.text.strip()
+        
+        # Robust JSON extraction
+        import re
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+        else:
+            # Fallback if no JSON braces found
+            text = text.replace('```json', '').replace('```', '').strip()
+            data = json.loads(text)
 
         return data
 
     except Exception as e:
         print(f"Gemini Extraction Error: {e}")
+        # Clean up gemini file reference if possible? No need, it expires
         raise HTTPException(status_code=500, detail=f"Failed to extract info: {str(e)}")
     finally:
         # Cleanup temp file

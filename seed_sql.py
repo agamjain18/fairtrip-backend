@@ -10,8 +10,7 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
 
 def seed_sql_data():
-    # Create tables
-    Base.metadata.drop_all(bind=engine)
+    # Create tables if not exist
     Base.metadata.create_all(bind=engine)
     
     db = SessionLocal()
@@ -26,6 +25,8 @@ def seed_sql_data():
                 avatar_url="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
                 phone="+1234567890",
                 bio="Travel enthusiast and adventure seeker",
+                is_verified=True,
+                friend_code="JOHN123",
                 two_factor_enabled=True,
                 dark_mode=True,
                 total_balance=2450.80,
@@ -40,6 +41,8 @@ def seed_sql_data():
                 avatar_url="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
                 phone="+1234567891",
                 bio="Foodie and culture lover",
+                is_verified=True,
+                friend_code="SARAH123",
                 dark_mode=True,
                 total_balance=1800.50,
                 amount_to_receive=200.00,
@@ -53,6 +56,8 @@ def seed_sql_data():
                 avatar_url="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
                 phone="+1234567892",
                 bio="Photography and nature lover",
+                is_verified=True,
+                friend_code="ALEX123",
                 dark_mode=True,
                 total_balance=3200.00,
                 amount_to_receive=500.00,

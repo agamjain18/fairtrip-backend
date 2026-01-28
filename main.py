@@ -135,6 +135,20 @@ async def health_check():
 async def startup_event():
     init_db()
     
+    # Auto-seed demo users if DB is empty
+    try:
+        from database_sql import SessionLocal, User
+        db = SessionLocal()
+        user_count = db.query(User).count()
+        db.close()
+        
+        if user_count == 0:
+            print("Database is empty. Seeding demo users...")
+            from seed_sql import seed_sql_data
+            seed_sql_data()
+    except Exception as e:
+        print(f"Failed to auto-seed demo users: {e}")
+
     # Auto-seed cities
     try:
         from seed_cities import seed_cities

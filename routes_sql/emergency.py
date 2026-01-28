@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from database_sql import get_db, City
+from database_sql import get_db, City, Trip
 from typing import List, Dict, Any, Optional
 import math
 

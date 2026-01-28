@@ -113,6 +113,7 @@ def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Trip not found")
     
     update_data = trip_update.dict(exclude_unset=True)
+    print(f"DEBUG: update_trip data: {update_data}")
     for key, value in update_data.items():
         setattr(db_trip, key, value)
             

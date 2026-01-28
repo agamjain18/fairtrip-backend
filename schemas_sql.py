@@ -126,6 +126,7 @@ class Trip(TripBase):
     creator_id: int
     created_at: datetime
     updated_at: datetime
+    image_urls: Optional[List[str]] = []
 
     
     class Config:

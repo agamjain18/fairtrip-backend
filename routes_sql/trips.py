@@ -3,7 +3,7 @@ from utils.email_service import send_trip_created_email, send_trip_invitation_em
 from utils.image_utils import update_trip_image_task
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version
+from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version, DestinationImage
 from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema
 from datetime import datetime, timezone
 from .expenses import get_user_balance_for_trip
@@ -25,6 +25,9 @@ def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db
         # Calculate real-time balance and member count for each trip
         for trip in all_trips:
             trip.user_balance = get_user_balance_for_trip(db, trip.id, user_id)
+            if trip.destination:
+                imgs = db.query(DestinationImage).filter(DestinationImage.destination.like(f"{trip.destination}%")).all()
+                trip.image_urls = [img.image_url for img in imgs] if imgs else []
 
             
         return all_trips
@@ -39,6 +42,9 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
 
+    if trip.destination:
+        imgs = db.query(DestinationImage).filter(DestinationImage.destination.like(f"{trip.destination}%")).all()
+        trip.image_urls = [img.image_url for img in imgs] if imgs else []
     return trip
 
 @router.post("/", response_model=TripSchema, status_code=status.HTTP_201_CREATED)

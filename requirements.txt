@@ -9,7 +9,7 @@ python-jose
 cryptography
 passlib[bcrypt]
 python-dotenv
-bcrypt
+bcrypt==3.2.2
 google-generativeai
 sqlalchemy
 requests

@@ -1,3 +1,16 @@
+import bcrypt
+import sys
+
+# Monkeypatch for passlib compatibility with bcrypt >= 4.0.0
+# passlib needs bcrypt.__about__.__version__ which was removed in bcrypt 4.0.0
+if not hasattr(bcrypt, "__about__"):
+    try:
+        from collections import namedtuple
+        VersionInfo = namedtuple("VersionInfo", ["version"])
+        bcrypt.__about__ = VersionInfo(bcrypt.__version__)
+    except Exception:
+        pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database_sql import init_db

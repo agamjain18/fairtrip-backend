@@ -88,17 +88,21 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
     # Real-time sync: increment version for all participants
     increment_trip_members_version(db, db_expense.trip_id)
 
-    # Notify participants
-    for participant in participants:
-        if participant.id != db_expense.paid_by_id:
-            send_notification_sql(
-                db,
-                user_id=participant.id,
-                title="New Expense Added",
-                message=f"{payer.full_name or payer.username} added '{db_expense.title}' ({db_expense.amount} {db_expense.currency}) to '{trip.title}'",
-                notification_type="expense",
-                action_url=f"/trip/{trip.id}/expenses"
-            )
+    # Notify participants only if more than 2 people are involved
+    involved_ids = {p.id for p in participants}
+    involved_ids.add(expense.paid_by_id)
+
+    if len(involved_ids) > 2:
+        for participant in participants:
+            if participant.id != db_expense.paid_by_id:
+                send_notification_sql(
+                    db,
+                    user_id=participant.id,
+                    title="New Expense Added",
+                    message=f"{payer.full_name or payer.username} added '{db_expense.title}' ({db_expense.amount} {db_expense.currency}) to '{trip.title}'",
+                    notification_type="expense",
+                    action_url=f"/trip/{trip.id}/expenses"
+                )
 
     return db_expense
 

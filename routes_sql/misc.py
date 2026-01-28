@@ -1,60 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from database_sql import get_db, Photo, Poll, PollOption, PollVote, BucketListItem, Accommodation, Flight, Notification
-from schemas_sql import (
-    Photo as PhotoSchema, PhotoCreate,
-    Poll as PollSchema, PollCreate,
-    BucketListItem as BucketListItemSchema, BucketListItemCreate,
-    Accommodation as AccommodationSchema, AccommodationCreate,
-    Flight as FlightSchema, FlightCreate,
-    Notification as NotificationSchema, NotificationCreate
-)
-from datetime import datetime, timezone
+from .notifications import send_notification_sql
+from database_sql import get_db, Photo, Poll, PollOption, PollVote, BucketListItem, Accommodation, Flight, Notification, Trip, User
 
-router = APIRouter(prefix="/misc", tags=["miscellaneous"])
-
-# Photos
-@router.get("/photos/trip/{trip_id}", response_model=List[PhotoSchema])
-def get_trip_photos(trip_id: int, db: Session = Depends(get_db)):
-    """Get all photos for a trip"""
-    photos = db.query(Photo).filter(Photo.trip_id == trip_id).order_by(Photo.uploaded_at.desc()).all()
-    return photos
-
-@router.post("/photos", response_model=PhotoSchema, status_code=status.HTTP_201_CREATED)
-def create_photo(photo: PhotoCreate, db: Session = Depends(get_db)):
-    """Upload a new photo"""
-    db_photo = Photo(**photo.dict())
-    db.add(db_photo)
-    db.commit()
-    db.refresh(db_photo)
-    return db_photo
-
-@router.delete("/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_photo(photo_id: int, db: Session = Depends(get_db)):
-    """Delete a photo"""
-    photo = db.query(Photo).filter(Photo.id == photo_id).first()
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-    
-    db.delete(photo)
-    db.commit()
-    return None
-
-# Polls
-@router.get("/polls/trip/{trip_id}", response_model=List[PollSchema])
-def get_trip_polls(trip_id: int, db: Session = Depends(get_db)):
-    """Get all polls for a trip"""
-    polls = db.query(Poll).filter(Poll.trip_id == trip_id).order_by(Poll.created_at.desc()).all()
-    return polls
-
-@router.get("/polls/{poll_id}", response_model=PollSchema)
-def get_poll(poll_id: int, db: Session = Depends(get_db)):
-    """Get a specific poll"""
-    poll = db.query(Poll).filter(Poll.id == poll_id).first()
-    if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
-    return poll
+# ... existing code ...
 
 @router.post("/polls", response_model=PollSchema, status_code=status.HTTP_201_CREATED)
 def create_poll(poll: PollCreate, db: Session = Depends(get_db)):
@@ -72,6 +22,24 @@ def create_poll(poll: PollCreate, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(db_poll)
+
+    # Notify all trip members
+    trip = db.query(Trip).filter(Trip.id == poll.trip_id).first()
+    if trip:
+        creator = db.query(User).filter(User.id == poll.created_by_id).first()
+        creator_name = creator.full_name or creator.username if creator else "A member"
+        
+        for member in trip.members:
+            if member.id != poll.created_by_id:
+                send_notification_sql(
+                    db,
+                    user_id=member.id,
+                    title="New Poll",
+                    message=f"{creator_name} created a poll in '{trip.title}'",
+                    notification_type="poll",
+                    action_url=f"/trip/{trip.id}/polls"
+                )
+
     return db_poll
 
 @router.post("/polls/{poll_id}/vote")

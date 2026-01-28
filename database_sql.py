@@ -529,7 +529,71 @@ def get_db():
         db.close()
 
 def init_db():
+    # Regular table creation
     Base.metadata.create_all(bind=engine)
+    
+    # Automated column migration for SQLite
+    try:
+        from sqlalchemy import inspect
+        import sqlite3
+        
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+        
+        # Open a direct connection for ALTER TABLE commands
+        db_path = DATABASE_URL.replace("sqlite:///./", "").replace("sqlite:///", "")
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        migrated = False
+        for table_name, table in Base.metadata.tables.items():
+            if table_name not in existing_tables:
+                continue
+                
+            existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+            
+            for column in table.columns:
+                if column.name not in existing_columns:
+                    print(f"Migration: Adding missing column {column.name} to {table_name}")
+                    
+                    # Basic type mapping
+                    col_type = str(column.type).upper()
+                    if "VARCHAR" in col_type or "STRING" in col_type or "TEXT" in col_type:
+                        type_str = "TEXT"
+                    elif "INTEGER" in col_type:
+                        type_str = "INTEGER"
+                    elif "FLOAT" in col_type:
+                        type_str = "FLOAT"
+                    elif "BOOLEAN" in col_type:
+                        type_str = "BOOLEAN"
+                    elif "DATETIME" in col_type:
+                        type_str = "DATETIME"
+                    else:
+                        type_str = "TEXT"
+                    
+                    default_clause = ""
+                    if column.default is not None and hasattr(column.default, 'arg'):
+                        arg = column.default.arg
+                        if isinstance(arg, (int, float)):
+                            default_clause = f" DEFAULT {arg}"
+                        elif isinstance(arg, bool):
+                            default_clause = f" DEFAULT {1 if arg else 0}"
+                        elif isinstance(arg, str):
+                            default_clause = f" DEFAULT '{arg}'"
+                    
+                    try:
+                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column.name} {type_str}{default_clause}")
+                        migrated = True
+                    except Exception as e:
+                        print(f"Migration Error on {table_name}.{column.name}: {e}")
+        
+        if migrated:
+            conn.commit()
+            print("Database migration completed successfully.")
+        conn.close()
+        
+    except Exception as e:
+        print(f"Auto-migration failed: {e}")
 
 def increment_user_version(db: Session, user_id: int):
     """Utility to increment a user's data version for real-time sync"""

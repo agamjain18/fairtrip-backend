@@ -11,3 +11,6 @@ uploads/
 .vscode/
 firebase-key.json
 *.json.key
+
+!uploads/udaipur/
+!uploads/udaipur/*

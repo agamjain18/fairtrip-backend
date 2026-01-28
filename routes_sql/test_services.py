@@ -26,7 +26,7 @@ def test_push_notification(
         user_id=current_user.id,
         title=title,
         message=message,
-        notification_type="test"
+        notification_type="push_notification"
     )
     if notification:
         return {"status": "success", "message": "Notification sent"}

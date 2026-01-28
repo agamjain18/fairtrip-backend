@@ -7,7 +7,7 @@ env/
 venv/
 ENV/
 *.db
-uploads/
+uploads/*
 .vscode/
 firebase-key.json
 *.json.key

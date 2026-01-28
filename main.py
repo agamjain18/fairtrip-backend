@@ -56,12 +56,18 @@ class ETagMiddleware(BaseHTTPMiddleware):
              
         return response
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"Incoming Request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    return response
+
 # Initialize FastAPI app
 app = FastAPI(
     title="FairShare API",
     description="Backend API for FairShare - Group Trip Management & Expense Splitting App",
     version="1.0.0",
-    # root_path="/fairtrip"  # Removed as it might interfere with static mount when proxy strips prefix
+    root_path="/fairtrip" 
 )
 
 # Configure CORS

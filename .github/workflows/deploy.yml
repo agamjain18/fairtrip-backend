@@ -130,11 +130,11 @@ jobs:
             fi
 
             # 8. Check Public URL
-            echo "🌍 Checking Public URL (api.agamjain.online)..."
+            echo "🌍 Checking Public URL (api.agamjain.online/fairtrip)..."
             # We use the same script but point it to the public domain
             # sleep briefly to let Nginx reload settle completely
             sleep 5
-            python3 api_test_workflow.py --url https://api.agamjain.online
+            python3 api_test_workflow.py --url https://api.agamjain.online/fairtrip
 
             if [ $? -eq 0 ]; then
                echo "✅ Public API Testing Workflow passed!"

@@ -48,7 +48,7 @@ app = FastAPI(
     title="FairShare API",
     description="Backend API for FairShare - Group Trip Management & Expense Splitting App",
     version="1.0.0",
-    root_path="/fairtrip"
+    # root_path="/fairtrip"  # Removed as it might interfere with static mount when proxy strips prefix
 )
 
 # Configure CORS
@@ -63,6 +63,19 @@ app.add_middleware(
 
 app.add_middleware(ETagMiddleware)
 
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"❌ Validation Error for {request.url}:")
+    print(f"   Body: {exc.body}")
+    print(f"   Errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body)},
+    )
+
 from fastapi.staticfiles import StaticFiles
 import os
 from dotenv import load_dotenv
@@ -70,9 +83,18 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-UPLOAD_DIRECTORY = "uploads"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIRECTORY = os.path.join(BASE_DIR, "uploads")
+
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
+    
+print(f"📂 Mounting static files from: {UPLOAD_DIRECTORY}")
+if os.path.exists(UPLOAD_DIRECTORY):
+    print(f"   - Directory exists. Contains {len(os.listdir(UPLOAD_DIRECTORY))} files.")
+else:
+    print(f"   - Directory does NOT exist!")
+
 app.mount("/static", StaticFiles(directory=UPLOAD_DIRECTORY), name="static")
 
 # Include routers
@@ -121,7 +143,7 @@ async def startup_event():
         print(f"Failed to auto-seed cities: {e}")
 
     print("SQLite Database initialized successfully!")
-    port = os.getenv("PORT", "8000")
+    port = os.getenv("PORT", "8005")
     print(f"API Documentation available at: http://localhost:{port}/docs")
 
 

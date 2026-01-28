@@ -4,12 +4,7 @@ import asyncio
 from typing import Dict, List, Any
 from database import Trip
 from motor.motor_asyncio import AsyncIOMotorClient
-
-# Configure Gemini
-API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
-genai.configure(api_key=API_KEY)
-
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+from utils.ai_client import generate_content_with_fallback
 
 # Database connection for caching images
 DATABASE_URL = "mongodb://localhost:27017"
@@ -32,10 +27,6 @@ async def fetch_place_image(place_name: str) -> str:
         return cached["image_url"]
 
     # If not in cache, we need to find an image.
-    # Since we can't search Google Images directly without an API key for Custom Search,
-    # we will rely on Gemini to provide a known public URL if possible, or use a placeholder.
-    # For a robust solution without a paid search API, we'll try to get Gemini to give us a Wikimedia/Unsplash URL.
-    
     prompt = f"""
     Find a valid, public, direct image URL (jpg/png) for the tourist place: "{place_name}".
     Prefer Wikimedia Commons or Unsplash URLs.
@@ -44,7 +35,8 @@ async def fetch_place_image(place_name: str) -> str:
     """
     
     try:
-        response = await model.generate_content_async(prompt)
+        # Use fallback client (wrapped in thread for async compat)
+        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
         image_url = response.text.strip()
         
         if "PLACEHOLDER" in image_url or len(image_url) > 500 or not image_url.startswith("http"):
@@ -105,7 +97,8 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
         }}
         """
         
-        response = await model.generate_content_async(prompt)
+        # Use fallback client
+        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
         

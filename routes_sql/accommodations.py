@@ -116,9 +116,10 @@ async def extract_metadata(request: UrlRequest):
     import google.generativeai as genai
 
     # Use the same API key as transports.py and ai_service.py
-    API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    # API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
+    # genai.configure(api_key=API_KEY)
+    
+    from utils.ai_client import generate_content_with_fallback
 
     print(f"Extracting metadata for URL: {request.url}")
 
@@ -152,7 +153,8 @@ async def extract_metadata(request: UrlRequest):
         If a field is not found, use an empty string.
         """
 
-        response = model.generate_content(prompt)
+        # Use fallback client
+        response = generate_content_with_fallback(prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()
         data = json.loads(text)
 

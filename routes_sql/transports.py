@@ -5,16 +5,17 @@ from database_sql import get_db, Transport, Trip, increment_trip_members_version
 from schemas_sql import Transport as TransportSchema, TransportCreate
 from datetime import datetime, timezone
 import os
-import google.generativeai as genai
+# import google.generativeai as genai
 import tempfile
 import json
+from pypdf import PdfReader
+from utils.ai_client import generate_content_with_fallback
 
 router = APIRouter(prefix="/transports", tags=["transports"])
 
 # Use the same API key as ai_service.py
-API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
+# genai.configure(api_key=API_KEY)
 
 @router.get("/", response_model=List[TransportSchema])
 def get_transports(trip_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -85,11 +86,24 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
 
     try:
-        # Upload to Gemini
-        gemini_file = genai.upload_file(tmp_path, mime_type="application/pdf")
+        # Extract text from PDF using pypdf
+        reader = PdfReader(tmp_path)
+        extracted_text = ""
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                extracted_text += text + "\n"
         
-        prompt = """
-        Extract transport details from this ticket/booking confirmation.
+        # Limit text size for context window if necessary (Llama3-70b has 8k context, usually enough for tickets)
+        if len(extracted_text) > 20000:
+            extracted_text = extracted_text[:20000] + "\n[Truncated]"
+
+        prompt = f"""
+        Extract transport details from this ticket/booking confirmation text.
+        
+        CONTEXT:
+        {extracted_text}
+
         Provide the following fields in JSON format:
         - type: (one of: flight, train, bus, car_rental, taxi, boat, other)
         - carrier: (e.g., Airline name, Train company)
@@ -106,7 +120,8 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         Respond ONLY with the JSON object.
         """
 
-        response = model.generate_content([gemini_file, prompt])
+        # Use Groq AI Client
+        response = generate_content_with_fallback(prompt)
         text = response.text.strip()
         
         # Robust JSON extraction
@@ -122,8 +137,7 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         return data
 
     except Exception as e:
-        print(f"Gemini Extraction Error: {e}")
-        # Clean up gemini file reference if possible? No need, it expires
+        print(f"Extraction Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to extract info: {str(e)}")
     finally:
         # Cleanup temp file

@@ -74,6 +74,7 @@ class User(Base):
     bio = Column(Text, nullable=True)
     friend_code = Column(String, unique=True, index=True, nullable=True)
     fcm_token = Column(String, nullable=True)
+    is_verified = Column(Boolean, default=False)
     
     # Settings
     two_factor_enabled = Column(Boolean, default=False)
@@ -148,7 +149,10 @@ class Trip(Base):
     title = Column(String, index=True)
     description = Column(Text, nullable=True)
     destination = Column(String, nullable=True)
+    start_location = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     status = Column(SQLEnum(TripStatus), default=TripStatus.PLANNING)
@@ -506,6 +510,15 @@ class City(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     emergency_numbers = Column(JSON, nullable=True) # JSON object
+    popular_spots = Column(JSON, nullable=True) # JSON list of {name, image_url, description}
+
+class DestinationImage(Base):
+    __tablename__ = "destination_images"
+    id = Column(Integer, primary_key=True, index=True)
+    destination = Column(String, unique=True, index=True)
+    image_url = Column(String)
+    famous_spot = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 # Database Helper
 def get_db():

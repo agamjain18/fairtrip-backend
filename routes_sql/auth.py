@@ -301,12 +301,28 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         bio=user.bio,
         friend_code=generate_friend_code(),
         created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        updated_at=datetime.now(timezone.utc),
+        is_verified=False
     )
     
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    # Generate and send OTP for verification
+    otp_code = str(random.randint(100000, 999999))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    
+    new_otp = OTP(email=user.email, otp_code=otp_code, expires_at=expires_at)
+    db.add(new_otp)
+    db.commit()
+    
+    # Send verification email (using background tasks if available)
+    try:
+        send_otp_email(user.email, otp_code)
+    except:
+        pass
+
     return db_user
 
 @router.post("/login", response_model=Token)
@@ -321,6 +337,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email/username or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not getattr(user, 'is_verified', True): # Fallback to True for safety if column missing
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not verified. Please verify your email."
         )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -342,6 +364,12 @@ def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not getattr(user, 'is_verified', True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not verified. Please verify your email."
         )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -412,7 +440,67 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     db.delete(otp_record)
     
     db.commit()
+    db.commit()
     return {"message": "Password reset successfully"}
+
+@router.post("/resend-verification")
+def resend_verification(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Resend verification OTP if the user is unverified"""
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.is_verified:
+        return {"message": "User is already verified"}
+
+    # Generate new OTP
+    otp_code = str(random.randint(100000, 999999))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    
+    # Store new OTP
+    new_otp = OTP(email=user.email, otp_code=otp_code, expires_at=expires_at)
+    db.add(new_otp)
+    db.commit()
+    
+    # Send email
+    background_tasks.add_task(send_otp_email, user.email, otp_code)
+    
+    return {"message": "Verification code sent"}
+
+@router.post("/verify-registration")
+def verify_registration(request: VerifyOTPRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Verify registration OTP and mark user as verified"""
+    otp_record = db.query(OTP).filter(
+        OTP.email == request.email,
+        OTP.otp_code == request.otp_code,
+        OTP.expires_at > datetime.now(timezone.utc)
+    ).order_by(OTP.created_at.desc()).first()
+
+    if not otp_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_verified = True
+    db.delete(otp_record)
+    db.commit()
+
+    # Send welcome email
+    background_tasks.add_task(send_welcome_email, user.email, user.full_name)
+
+    # Create access token immediately so they are logged in
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
+    )
+
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "message": "Account verified successfully"
+    }
 
 @router.get("/me", response_model=UserSchema)
 def get_current_user_info(current_user: User = Depends(get_current_user_sql)):
@@ -477,7 +565,8 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
             bio=None,
             friend_code=generate_friend_code(),
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
+            is_verified=True # Social logins are pre-verified
         )
         
         try:

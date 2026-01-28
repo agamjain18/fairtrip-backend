@@ -79,6 +79,7 @@ class TripBase(BaseModel):
     title: str
     description: Optional[str] = None
     destination: Optional[str] = None
+    start_location: Optional[str] = None
     image_url: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -87,6 +88,8 @@ class TripBase(BaseModel):
     timezone: Optional[str] = None
     is_public: Optional[bool] = False
     use_ai: Optional[bool] = False
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     itinerary_data: Optional[dict] = None
 
 class TripCreate(TripBase):
@@ -96,6 +99,7 @@ class TripUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     destination: Optional[str] = None
+    start_location: Optional[str] = None
     image_url: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -103,6 +107,8 @@ class TripUpdate(BaseModel):
     status: Optional[TripStatusEnum] = None
     currency: Optional[str] = None
     is_public: Optional[bool] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     itinerary_data: Optional[dict] = None
     ai_status: Optional[str] = None
 

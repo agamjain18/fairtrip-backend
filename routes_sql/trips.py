@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from utils.email_service import send_trip_created_email, send_trip_invitation_email, send_trip_deleted_email
+from utils.image_utils import update_trip_image_task
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version
@@ -59,9 +60,48 @@ def create_trip(trip: TripCreate, creator_id: int, background_tasks: BackgroundT
     db.refresh(db_trip)
     db.refresh(db_trip)
     
-    # Send creation email
+    # Send creation email with details
     if user.email:
-        background_tasks.add_task(send_trip_created_email, user.email, user.full_name or user.username, db_trip.title)
+        background_tasks.add_task(
+            send_trip_created_email, 
+            user.email, 
+            user.full_name or user.username, 
+            db_trip.title,
+            destination=db_trip.destination,
+            start_date=db_trip.start_date,
+            end_date=db_trip.end_date,
+            budget=db_trip.total_budget,
+            currency=db_trip.currency,
+            description=db_trip.description,
+            use_ai=db_trip.use_ai,
+            start_location=db_trip.start_location
+        )
+    
+    # Fetch famous spot image if destination exists
+    if db_trip.destination:
+        try:
+            from database_sql import SessionLocal
+            from utils.image_utils import update_trip_image_task
+            import asyncio
+
+            async def run_image_task(trip_id, dest):
+                new_db = SessionLocal()
+                try:
+                    await update_trip_image_task(trip_id, dest, new_db)
+                except Exception as e:
+                    print(f"Error in image background task: {e}")
+                finally:
+                    new_db.close()
+            
+            def start_async_task(trip_id, dest):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(run_image_task(trip_id, dest))
+                loop.close()
+
+            background_tasks.add_task(start_async_task, db_trip.id, db_trip.destination)
+        except Exception as e:
+            print(f"Error scheduling image task: {e}")
         
     return db_trip
 

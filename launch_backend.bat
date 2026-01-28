@@ -23,8 +23,8 @@ echo [1/3] Configuring Windows Firewall...
 netsh advfirewall firewall add rule name="FairTrip_Backend_Python" dir=in action=allow program="python.exe" enable=yes profile=any
 netsh advfirewall firewall add rule name="FairTrip_Backend_Python" dir=out action=allow program="python.exe" enable=yes profile=any
 
-:: 2. Specifically unblock Port 8000 (Backend)
-netsh advfirewall firewall add rule name="FairTrip_Port_8000" dir=in action=allow protocol=TCP localport=8000 enable=yes profile=any
+:: 2. Specifically unblock Port 8005 (Backend)
+netsh advfirewall firewall add rule name="FairTrip_Port_8005" dir=in action=allow protocol=TCP localport=8005 enable=yes profile=any
 
 :: 3. The "Active All Ports" Request - Open port range for local development
 :: WARNING: This allows communication on all ports for local development. Only use on trusted networks.
@@ -43,7 +43,7 @@ if %errorLevel% neq 0 (
     exit /b
 )
 
-echo [3/3] Starting FairTrip Backend Server on http://0.0.0.0:8000...
+echo [3/3] Starting FairTrip Backend Server on http://0.0.0.0:8005...
 echo.
 
 :: Ensure we are in the correct directory

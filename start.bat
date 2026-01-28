@@ -16,8 +16,8 @@ echo.
 echo [3/3] Starting FastAPI server with PM2...
 echo.
 echo ========================================
-echo Server will start at: http://localhost:8000
-echo API Docs: http://localhost:8000/docs
+echo Server will start at: http://localhost:8005
+echo API Docs: http://localhost:8005/docs
 echo ========================================
 echo.
 

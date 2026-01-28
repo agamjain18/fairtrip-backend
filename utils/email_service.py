@@ -141,15 +141,82 @@ def send_email_html(to_email: str, subject: str, html_content: str):
 
 # --- Specific Notifications ---
 
-def send_trip_created_email(email: str, user_name: str, trip_title: str):
+def send_trip_created_email(email: str, user_name: str, trip_title: str, destination: Optional[str] = None, 
+                             start_date: Optional[str] = None, end_date: Optional[str] = None, 
+                             budget: float = 0.0, currency: str = "USD", description: Optional[str] = None,
+                             use_ai: bool = False, start_location: Optional[str] = None):
+    
+    # Format dates if provided
+    date_info_text = "TBD"
+    if start_date:
+        try:
+            from datetime import datetime
+            
+            # Handle potential string or already datetime if accidentally passed
+            if isinstance(start_date, str):
+                s_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            else:
+                s_dt = start_date
+                
+            date_info_text = s_dt.strftime("%b %d, %Y")
+            
+            if end_date:
+                if isinstance(end_date, str):
+                    e_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                else:
+                    e_dt = end_date
+                date_info_text += f" - {e_dt.strftime('%b %d, %Y')}"
+        except Exception as e:
+            print(f"Date formatting error in email: {e}")
+            date_info_text = str(start_date)
+
+    ai_badge = ""
+    if use_ai:
+        ai_badge = """
+        <div style="display: inline-block; background-color: #E0E7FF; color: #4338CA; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
+            ✨ AI ASSISTED
+        </div>
+        """
+
     content = f"""
-    <div class="greeting">Trip Created! 🌍</div>
-    <p>Hi {user_name},</p>
-    <p>You have successfully created a new trip: <strong>{trip_title}</strong>.</p>
-    <p>It's time to start planning! Invite friends, add itinerary items, and get ready for an adventure.</p>
+    <div style="text-align: center; margin-bottom: 30px;">
+        {ai_badge}
+        <div class="greeting">Your Adventure Begins! ✈️</div>
+        <p style="font-size: 16px; color: #666;">Hi <strong>{user_name}</strong>, your trip <strong>{trip_title}</strong> is officially on the books.</p>
+    </div>
+
+    <div style="background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 25px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <h3 style="margin-top: 0; color: #111827; font-size: 18px; border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">Trip Summary</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px 0; color: #6B7280; width: 120px;">📍 Destination</td>
+                <td style="padding: 10px 0; color: #111827; font-weight: 500;">{destination or 'To be decided'}</td>
+            </tr>
+            {f'<tr><td style="padding: 10px 0; color: #6B7280;">🏠 Origin</td><td style="padding: 10px 0; color: #111827; font-weight: 500;">{start_location}</td></tr>' if start_location else ''}
+            <tr>
+                <td style="padding: 10px 0; color: #6B7280;">📅 Dates</td>
+                <td style="padding: 10px 0; color: #111827; font-weight: 500;">{date_info_text}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0; color: #6B7280;">💰 Budget</td>
+                <td style="padding: 10px 0; color: #111827; font-weight: 500;">{currency} {budget:,.2f}</td>
+            </tr>
+        </table>
+        
+        {f'<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #F3F4F6; color: #4B5563; font-style: italic; font-size: 14px;">"{description}"</div>' if description else ''}
+    </div>
+
+    <div style="margin-bottom: 30px;">
+        <h3 style="color: #111827; font-size: 16px; margin-bottom: 15px;">Next Steps:</h3>
+        <ul style="padding-left: 20px; color: #4B5563; line-height: 1.8;">
+            <li><strong>Invite your squad:</strong> Trips are better together! Share the trip link with friends in the app.</li>
+            <li><strong>Build your itinerary:</strong> Start adding spots you want to visit and booking accommodations.</li>
+            <li><strong>Track expenses:</strong> Keep everyone's wallet happy by logging costs as you go.</li>
+        </ul>
+    </div>
     """
-    html = _get_base_template("Trip Created - FairTrip", content, "View Trip", "https://fairtrip.app/trips")
-    return send_email_html(email, f"Trip Created: {trip_title}", html)
+    html = _get_base_template("Adventure Awaits - FairTrip", content, "Open in FairTrip", "https://fairtrip.app/trips")
+    return send_email_html(email, f"Trip Confirmed: {trip_title} 🌍", html)
 
 def send_trip_invitation_email(email: str, inviter_name: str, trip_title: str):
     content = f"""

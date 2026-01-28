@@ -122,10 +122,28 @@ jobs:
             python3 api_test_workflow.py
             
             if [ $? -eq 0 ]; then
-               echo "✅ API Testing Workflow passed!"
+               echo "✅ Local API Testing Workflow passed!"
             else
-               echo "❌ API Testing Workflow failed. Checking logs:"
+               echo "❌ Local API Testing Workflow failed. Checking logs:"
                pm2 logs fairshare-backend --lines 50 --nostream
+               exit 1
+            fi
+
+            # 8. Check Public URL
+            echo "🌍 Checking Public URL (api.agamjain.online)..."
+            # We use the same script but point it to the public domain
+            # sleep briefly to let Nginx reload settle completely
+            sleep 5
+            python3 api_test_workflow.py --url https://api.agamjain.online
+
+            if [ $? -eq 0 ]; then
+               echo "✅ Public API Testing Workflow passed!"
+            else
+               echo "⚠️ Public API access failed. This might be DNS or Firewall related."
+               # We don't exit 1 here because the service itself works locally; 
+               # we just want to warn the user or fail if strictly required.
+               # User requested to 'check' it. If they want strict failure, we should exit 1.
+               # I'll exit 1 to be safe as they want to verify the pipeline.
                exit 1
             fi
 

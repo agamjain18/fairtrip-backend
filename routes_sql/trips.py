@@ -7,6 +7,7 @@ from database_sql import get_db, Trip, User, trip_members, increment_trip_member
 from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema
 from datetime import datetime, timezone
 from .expenses import get_user_balance_for_trip
+from .notifications import send_notification_sql
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 

@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Query, Depends
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from database_sql import City, get_db
+from database_sql import City, DestinationImage, get_db
 import json
 
 router = APIRouter(prefix="/cities", tags=["cities"])
+
+@router.get("/featured-images")
+def get_featured_images(db: Session = Depends(get_db)):
+    """Get all destination images for the home screen slider"""
+    return db.query(DestinationImage).all()
 
 @router.get("/search")
 def search_cities(q: str = Query(..., min_length=1), db: Session = Depends(get_db)):

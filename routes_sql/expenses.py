@@ -18,6 +18,14 @@ def get_expenses(trip_id: Optional[int] = None, skip: int = 0, limit: int = 100,
     if trip_id:
         query = query.filter(Expense.trip_id == trip_id)
     expenses = query.offset(skip).limit(limit).all()
+    
+    # Populate trip_title
+    for e in expenses:
+        if e.trip:
+            e.trip_title = e.trip.title
+        else:
+            e.trip_title = "Common"
+            
     return expenses
 
 @router.get("/{expense_id}", response_model=ExpenseSchema)
@@ -26,6 +34,12 @@ def get_expense(expense_id: int, db: Session = Depends(get_db)):
     expense = db.query(Expense).filter(Expense.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    
+    if expense.trip:
+        expense.trip_title = expense.trip.title
+    else:
+        expense.trip_title = "Common"
+        
     return expense
 
 @router.post("/", response_model=ExpenseSchema, status_code=status.HTTP_201_CREATED)
@@ -326,6 +340,13 @@ def get_user_expenses(user_id: int, db: Session = Depends(get_db)):
     expenses = db.query(Expense).join(Expense.participants).filter(
         (Expense.paid_by_id == user_id) | (User.id == user_id)
     ).distinct().all()
+    
+    for e in expenses:
+        if e.trip:
+            e.trip_title = e.trip.title
+        else:
+            e.trip_title = "Common"
+            
     return expenses
 
 def calculate_trip_balances(db: Session, trip_id: int) -> dict:

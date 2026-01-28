@@ -158,6 +158,7 @@ class ExpenseUpdate(BaseModel):
 class Expense(ExpenseBase):
     id: int
     trip_id: int
+    trip_title: Optional[str] = None
     paid_by_id: int
     status: ExpenseStatusEnum
     receipt_url: Optional[str] = None

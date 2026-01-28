@@ -172,11 +172,15 @@ async def startup_event():
             demo_user = User(
                 email="john@example.com",
                 username="john_doe",
-                hashed_password=pwd_context.hash("password123"),
-                is_manual=True,
+                password_hash=pwd_context.hash("password123"),
                 is_verified=True,
                 full_name="John Doe"
             )
+            # Remove keys that don't exist if any, manual check
+            # User model has: email, username, full_name, password_hash, is_verified, avatar_url...
+            # is_manual seems NOT to be in the model definition in database_sql.py, so removing it.
+            # wait, I should verify is_manual
+                                            
             db.add(demo_user)
             db.commit()
         else:
@@ -184,7 +188,7 @@ async def startup_event():
             if not demo_user.is_verified:
                 print("Demo user 'john' unverified. Fixing...")
                 demo_user.is_verified = True
-                demo_user.hashed_password = pwd_context.hash("password123")
+                demo_user.password_hash = pwd_context.hash("password123")
                 db.commit()
                 
         db.close()

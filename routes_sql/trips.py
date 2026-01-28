@@ -21,9 +21,10 @@ def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db
         # Combine and deduplicate
         all_trips = list({t.id: t for t in (trips + own_trips)}.values())
         
-        # Calculate real-time balance for each trip
+        # Calculate real-time balance and member count for each trip
         for trip in all_trips:
             trip.user_balance = get_user_balance_for_trip(db, trip.id, user_id)
+            trip.member_count = len(trip.members)
             
         return all_trips
     else:
@@ -36,6 +37,7 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
+    trip.member_count = len(trip.members)
     return trip
 
 @router.post("/", response_model=TripSchema, status_code=status.HTTP_201_CREATED)

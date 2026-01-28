@@ -39,6 +39,7 @@ class UserBase(BaseModel):
     avatar_url: Optional[str] = None
     phone: Optional[str] = None
     bio: Optional[str] = None
+    fcm_token: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -55,6 +56,7 @@ class UserUpdate(BaseModel):
     profile_visibility: Optional[bool] = None
     share_trends: Optional[bool] = None
     show_active_trips: Optional[bool] = None
+    fcm_token: Optional[str] = None
 
 class User(UserBase):
     id: int

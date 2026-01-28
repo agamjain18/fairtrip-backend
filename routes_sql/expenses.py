@@ -283,9 +283,13 @@ def get_trip_expense_summary(trip_id: int, user_id: Optional[int] = None, db: Se
     expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()
     total_spent = sum(e.amount for e in expenses)
     
+    # Member count
+    member_count = db.query(trip_members).filter(trip_members.c.trip_id == trip_id).count()
+    
     summary = {
         "total_spent": total_spent,
         "expense_count": len(expenses),
+        "member_count": member_count,
         "by_category": {},
         "by_status": {}
     }

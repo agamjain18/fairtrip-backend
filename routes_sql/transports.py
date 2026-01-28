@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+import shutil
+import uuid
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database_sql import get_db, Transport, Trip, increment_trip_members_version
@@ -12,6 +14,31 @@ from pypdf import PdfReader
 from utils.ai_client import generate_content_with_fallback
 
 router = APIRouter(prefix="/transports", tags=["transports"])
+
+# Directory to save tickets
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TICKETS_DIR = os.path.join(BASE_DIR, "uploads", "tickets")
+if not os.path.exists(TICKETS_DIR):
+    os.makedirs(TICKETS_DIR)
+
+@router.post("/upload-ticket")
+async def upload_ticket(file: UploadFile = File(...)):
+    """Upload a ticket PDF/Image and return its static URL"""
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
+        raise HTTPException(status_code=400, detail="Only PDF and images are supported")
+    
+    # Generate unique filename
+    filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(TICKETS_DIR, filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Return the relative URL served by StaticFiles
+    # Since StaticFiles is mounted at /static to UPLOAD_DIRECTORY (backend/uploads)
+    # The URL should be /static/tickets/{filename}
+    return {"url": f"/static/tickets/{filename}", "ticket_url": f"/static/tickets/{filename}"}
 
 # Use the same API key as ai_service.py
 # API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
@@ -86,6 +113,18 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
 
     try:
+        # Save the file permanently as well
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        saved_filename = f"{uuid.uuid4()}{file_ext}"
+        saved_file_path = os.path.join(TICKETS_DIR, saved_filename)
+        
+        # We need to seek back to start since we already read it for extraction
+        await file.seek(0)
+        with open(saved_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        ticket_url = f"/static/tickets/{saved_filename}"
+
         # Extract text from PDF using pypdf
         reader = PdfReader(tmp_path)
         extracted_text = ""
@@ -134,6 +173,8 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
             text = text.replace('```json', '').replace('```', '').strip()
             data = json.loads(text)
 
+        # Add the ticket_url to the returned data
+        data['ticket_url'] = ticket_url
         return data
 
     except Exception as e:
@@ -149,6 +190,7 @@ def get_trip_transports(trip_id: int, db: Session = Depends(get_db)):
     """Get all transports for a specific trip"""
     transports = db.query(Transport).filter(Transport.trip_id == trip_id).all()
     return transports
+@router.delete("/{transport_id}")
 def delete_transport(transport_id: int, db: Session = Depends(get_db)):
     """Delete a transport"""
     transport = db.query(Transport).filter(Transport.id == transport_id).first()

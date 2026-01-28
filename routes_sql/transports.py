@@ -144,7 +144,11 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-@router.delete("/{transport_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.get("/trip/{trip_id}/", response_model=List[TransportSchema])
+def get_trip_transports(trip_id: int, db: Session = Depends(get_db)):
+    """Get all transports for a specific trip"""
+    transports = db.query(Transport).filter(Transport.trip_id == trip_id).all()
+    return transports
 def delete_transport(transport_id: int, db: Session = Depends(get_db)):
     """Delete a transport"""
     transport = db.query(Transport).filter(Transport.id == transport_id).first()

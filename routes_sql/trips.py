@@ -30,7 +30,7 @@ def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db
         trips = db.query(Trip).offset(skip).limit(limit).all()
     return trips
 
-@router.get("/{trip_id}", response_model=TripSchema)
+@router.get("/{trip_id}/", response_model=TripSchema)
 def get_trip(trip_id: int, db: Session = Depends(get_db)):
     """Get a specific trip"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -105,7 +105,7 @@ def create_trip(trip: TripCreate, creator_id: int, background_tasks: BackgroundT
         
     return db_trip
 
-@router.put("/{trip_id}", response_model=TripSchema)
+@router.put("/{trip_id}/", response_model=TripSchema)
 def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get_db)):
     """Update trip details"""
     db_trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -124,14 +124,13 @@ def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get
     increment_trip_members_version(db, trip_id)
     return db_trip
 
-@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{trip_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_trip(trip_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Delete a trip"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     
-    db.delete(trip)
     db.delete(trip)
     
     # Notify members about deletion before commit (fetching members first)
@@ -145,7 +144,7 @@ def delete_trip(trip_id: int, background_tasks: BackgroundTasks, db: Session = D
         
     return None
 
-@router.get("/{trip_id}/members", response_model=List[UserSchema])
+@router.get("/{trip_id}/members/", response_model=List[UserSchema])
 def get_trip_members(trip_id: int, db: Session = Depends(get_db)):
     """Get all members of a trip"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -217,7 +216,7 @@ def remove_trip_member(trip_id: int, user_id: int, db: Session = Depends(get_db)
     
     return {"message": "Member removed successfully"}
 
-@router.get("/{trip_id}/summary")
+@router.get("/{trip_id}/summary/")
 def get_trip_summary(trip_id: int, db: Session = Depends(get_db)):
     """Get a summary of trip details and stats"""
     trip = db.query(Trip).filter(Trip.id == trip_id).first()

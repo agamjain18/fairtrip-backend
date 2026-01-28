@@ -7,6 +7,12 @@ from datetime import datetime, timezone
 
 router = APIRouter(prefix="/itinerary", tags=["itinerary"])
 
+@router.get("/trip/{trip_id}/", response_model=List[ItineraryDaySchema])
+def get_trip_itinerary(trip_id: int, db: Session = Depends(get_db)):
+    """Get full itinerary for a trip (all days with activities)"""
+    days = db.query(ItineraryDay).filter(ItineraryDay.trip_id == trip_id).order_by(ItineraryDay.day_number).all()
+    return days
+
 @router.get("/trip/{trip_id}/days", response_model=List[ItineraryDaySchema])
 def get_itinerary_days(trip_id: int, db: Session = Depends(get_db)):
     """Get all itinerary days for a trip"""

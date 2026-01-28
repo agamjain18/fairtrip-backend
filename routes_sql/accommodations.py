@@ -99,6 +99,12 @@ def delete_accommodation(accommodation_id: int, db: Session = Depends(get_db)):
     increment_trip_members_version(db, trip_id)
     return None
 
+@router.get("/trip/{trip_id}/", response_model=List[AccommodationSchema])
+def get_trip_accommodations(trip_id: int, db: Session = Depends(get_db)):
+    """Get all accommodations for a specific trip"""
+    accommodations = db.query(Accommodation).filter(Accommodation.trip_id == trip_id).all()
+    return accommodations
+
 from pydantic import BaseModel
 class UrlRequest(BaseModel):
     url: str

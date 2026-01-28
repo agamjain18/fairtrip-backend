@@ -5,10 +5,9 @@ import random
 import string
 import json
 
-BASE_URL = "http://localhost:8005"
-
 class APITester:
-    def __init__(self):
+    def __init__(self, base_url="http://localhost:8005"):
+        self.base_url = base_url.rstrip("/")
         self.headers = {}
         self.user_id = None
         self.temp_trip_id = None
@@ -18,7 +17,9 @@ class APITester:
         print(f"[TEST] {msg}")
 
     def test(self, name, method, path, expected_status=200, json_data=None, params=None):
-        url = f"{BASE_URL}{path}"
+        if not path.startswith("/"):
+            path = "/" + path
+        url = f"{self.base_url}{path}"
         print(f"Testing {name} ({method} {path})...", end=" ", flush=True)
         try:
             if method == "GET":
@@ -48,14 +49,19 @@ class APITester:
             return None
 
 def main():
-    tester = APITester()
-    tester.log(f"Starting EXTENSIVE API Testing Workflow targeting {BASE_URL}")
+    import argparse
+    parser = argparse.ArgumentParser(description="Run API tests.")
+    parser.add_argument("--url", default="http://localhost:8005", help="Target API URL")
+    args = parser.parse_args()
+    
+    tester = APITester(base_url=args.url)
+    tester.log(f"Starting EXTENSIVE API Testing Workflow targeting {tester.base_url}")
 
     # 1. Basic Public Endpoints
     tester.test("Health Check", "GET", "/health")
     tester.test("Root Check", "GET", "/")
-    tester.test("Cities List", "GET", "/cities")
-    tester.test("Currency Rates", "GET", "/currency/rates")
+    tester.test("Cities List", "GET", "/cities/")
+    tester.test("Currency Rates", "GET", "/currency/rates/")
 
     # 2. Authentication Flow
     email = f"test_{''.join(random.choices(string.ascii_lowercase, k=8))}@example.com"
@@ -89,8 +95,8 @@ def main():
             tester.user_id = me_res.json().get("id")
 
         # Users List & Search
-        tester.test("Get All Users", "GET", "/users")
-        tester.test("Search Users", "GET", "/users/search", params={"q": "QA"})
+        tester.test("Get All Users", "GET", "/users/")
+        tester.test("Search Users", "GET", "/users/search/", params={"q": "QA"})
         
         # 4. Trip Logic
         trip_data = {
@@ -108,10 +114,10 @@ def main():
                 tester.temp_trip_id = trip_res.json().get("id")
 
         if tester.temp_trip_id:
-            tester.test("Get My Trips", "GET", "/trips", params={"user_id": tester.user_id})
-            tester.test("Get Trip Detail", "GET", f"/trips/{tester.temp_trip_id}")
-            tester.test("Get Trip Members", "GET", f"/trips/{tester.temp_trip_id}/members")
-            tester.test("Get Trip Summary", "GET", f"/trips/{tester.temp_trip_id}/summary")
+            tester.test("Get My Trips", "GET", "/trips/", params={"user_id": tester.user_id})
+            tester.test("Get Trip Detail", "GET", f"/trips/{tester.temp_trip_id}/")
+            tester.test("Get Trip Members", "GET", f"/trips/{tester.temp_trip_id}/members/")
+            tester.test("Get Trip Summary", "GET", f"/trips/{tester.temp_trip_id}/summary/")
 
             # 5. Expense Logic
             expense_data = {
@@ -123,37 +129,37 @@ def main():
                 "category": "other"
             }
             tester.test("Create Expense", "POST", "/expenses/", expected_status=201, json_data=expense_data)
-            tester.test("Get Trip Expenses", "GET", f"/expenses/trip/{tester.temp_trip_id}")
-            tester.test("Get User Expenses", "GET", f"/expenses/user/{tester.user_id}")
+            tester.test("Get Trip Expenses", "GET", f"/expenses/trip/{tester.temp_trip_id}/")
+            tester.test("Get User Expenses", "GET", f"/expenses/user/{tester.user_id}/")
             
             # 6. Additional Modules
-            tester.test("Get Transports", "GET", f"/transports/trip/{tester.temp_trip_id}")
-            tester.test("Get Accommodations", "GET", f"/accommodations/trip/{tester.temp_trip_id}")
-            tester.test("Get Itinerary", "GET", f"/itinerary/trip/{tester.temp_trip_id}")
-            tester.test("Get Checklist", "GET", f"/checklist/trip/{tester.temp_trip_id}")
-            tester.test("Get Settlements", "GET", "/settlements", params={"trip_id": tester.temp_trip_id})
-            tester.test("Get Recurring Expenses", "GET", "/recurring-expenses")
+            tester.test("Get Transports", "GET", f"/transports/trip/{tester.temp_trip_id}/")
+            tester.test("Get Accommodations", "GET", f"/accommodations/trip/{tester.temp_trip_id}/")
+            tester.test("Get Itinerary", "GET", f"/itinerary/trip/{tester.temp_trip_id}/")
+            tester.test("Get Checklist", "GET", f"/checklist/trip/{tester.temp_trip_id}/")
+            tester.test("Get Settlements", "GET", "/settlements/", params={"trip_id": tester.temp_trip_id})
+            tester.test("Get Recurring Expenses", "GET", "/recurring-expenses/")
             
             # Emergency
-            tester.test("Get Emergency Contacts", "GET", "/emergency/contacts", params={"trip_id": tester.temp_trip_id})
+            tester.test("Get Emergency Contacts", "GET", "/emergency/contacts/", params={"trip_id": tester.temp_trip_id})
 
         # 7. Friends
         if tester.user_id:
             tester.test("Get User Friends", "GET", f"/users/{tester.user_id}/friends")
 
         # 8. Notifications
-        tester.test("Get Notifications", "GET", "/notifications")
+        tester.test("Get Notifications", "GET", "/notifications/", params={"user_id": tester.user_id})
         
         # 9. Sync Services
-        tester.test("Sync Version Check", "GET", "/sync/version-check")
+        tester.test("Sync Version Check", "GET", "/sync/version-check/")
 
     # Final Result
     print("\n" + "="*30)
     if not tester.failed_tests:
-        print("✅ ALL TESTS PASSED SUCCESSFULLY!")
+        print("PASS: ALL TESTS PASSED SUCCESSFULLY!")
         sys.exit(0)
     else:
-        print(f"❌ {len(tester.failed_tests)} TESTS FAILED:")
+        print(f"FAIL: {len(tester.failed_tests)} TESTS FAILED:")
         for ft in tester.failed_tests:
             print(f"   - {ft}")
         sys.exit(1)

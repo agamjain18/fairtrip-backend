@@ -15,6 +15,30 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+@router.get("/contacts/")
+def get_emergency_contacts(trip_id: Optional[int] = None, latitude: Optional[float] = None, longitude: Optional[float] = None, db: Session = Depends(get_db)):
+    """Get emergency contacts for a trip or location"""
+    # In a real app, this would fetch from a database table 'emergency_contacts'
+    # linked to the trip or the city. For now, we return mock data based on city if trip_id provided.
+    
+    if trip_id:
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
+        if trip and trip.destination:
+            # Try to find city by name
+            dest = trip.destination.split(',')[0].strip()
+            city = db.query(City).filter(City.name.ilike(f"%{dest}%")).first()
+            if city:
+                return [
+                    {"name": "Local Police", "number": city.emergency_numbers.get("police", "112") if city.emergency_numbers else "112", "type": "police"},
+                    {"name": "Local Ambulance", "number": city.emergency_numbers.get("ambulance", "112") if city.emergency_numbers else "112", "type": "medical"},
+                    {"name": "Local Fire", "number": city.emergency_numbers.get("fire", "112") if city.emergency_numbers else "112", "type": "fire"}
+                ]
+                
+    return [
+        {"name": "Global Support", "number": "+1-800-FAIRTRIP", "type": "support"},
+        {"name": "International Emergency", "number": "112", "type": "emergency"}
+    ]
+
 @router.get("/nearby")
 def get_nearby_emergency_info(latitude: float, longitude: float, db: Session = Depends(get_db)):
     """

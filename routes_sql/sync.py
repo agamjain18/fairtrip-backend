@@ -6,6 +6,16 @@ from typing import Optional
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
+@router.get("/version-check/")
+def sync_version_check(
+    last_version: int = 0,
+    trip_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
+):
+    """Alias for /sync/"""
+    return sync_check(last_version, trip_id, current_user, db)
+
 @router.get("/")
 def sync_check(
     last_version: int = 0,

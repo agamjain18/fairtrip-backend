@@ -314,6 +314,20 @@ def get_trip_daily_analytics(trip_id: int, db: Session = Depends(get_db)):
         
     return result
 
+@router.get("/trip/{trip_id}/", response_model=List[ExpenseSchema])
+def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
+    """Get all expenses for a specific trip"""
+    expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()
+    return expenses
+
+@router.get("/user/{user_id}/", response_model=List[ExpenseSchema])
+def get_user_expenses(user_id: int, db: Session = Depends(get_db)):
+    """Get all expenses for a specific user (where they paid or participated)"""
+    expenses = db.query(Expense).join(Expense.participants).filter(
+        (Expense.paid_by_id == user_id) | (User.id == user_id)
+    ).distinct().all()
+    return expenses
+
 def calculate_trip_balances(db: Session, trip_id: int) -> dict:
     """Helper to calculate net balances for all members in a trip"""
     expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()

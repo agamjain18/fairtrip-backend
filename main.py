@@ -68,7 +68,7 @@ from fastapi.responses import JSONResponse
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    print(f"❌ Validation Error for {request.url}:")
+    print(f"Validation Error for {request.url}:")
     print(f"   Body: {exc.body}")
     print(f"   Errors: {exc.errors()}")
     return JSONResponse(
@@ -89,7 +89,7 @@ UPLOAD_DIRECTORY = os.path.join(BASE_DIR, "uploads")
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
     
-print(f"📂 Mounting static files from: {UPLOAD_DIRECTORY}")
+print(f"Mounting static files from: {UPLOAD_DIRECTORY}")
 if os.path.exists(UPLOAD_DIRECTORY):
     print(f"   - Directory exists. Contains {len(os.listdir(UPLOAD_DIRECTORY))} files.")
 else:

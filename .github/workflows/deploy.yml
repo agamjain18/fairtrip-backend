@@ -81,14 +81,12 @@ jobs:
             export PORT=8005
             
             if pm2 list | grep -q "fairshare-backend"; then
-                echo "♻️ Deleting old PM2 process to ensure clean start..."
-                pm2 delete fairshare-backend
+                echo "♻️ Restarting existing PM2 process..."
+                pm2 restart fairshare-backend --update-env
+            else
+                echo "🚀 Starting new PM2 process..."
+                pm2 start "$INTERPRETER" --name fairshare-backend -- main.py
             fi
-            
-            echo "🚀 Starting new PM2 process with explicit interpreter..."
-            # Execute python directly and pass main.py as argument
-            # PM2 will inherit the exported PORT env var
-            pm2 start "$INTERPRETER" --name fairshare-backend -- main.py
             
             pm2 save
             
@@ -114,13 +112,19 @@ jobs:
               fi
             fi
 
-            # 7. Local Health Check (Verification)
-            echo "🔍 Verifying service is listening on port 8005..."
-            sleep 10  # Increased wait time for startup
-            if curl -s http://localhost:8005/health | grep -q "healthy"; then
-               echo "✅ Backend is responding correctly on localhost:8005"
+            # 7. Comprehensive API Testing Workflow
+            echo "🔍 Running API Testing Workflow..."
+            sleep 10  # Wait for startup
+            
+            # Create a temporary test script or run the existing one
+            # We'll use a python script to verify multiple endpoints
+            source venv/bin/activate
+            python3 api_test_workflow.py
+            
+            if [ $? -eq 0 ]; then
+               echo "✅ API Testing Workflow passed!"
             else
-               echo "⚠️ Health check failed or /health route missing. Checking logs:"
+               echo "❌ API Testing Workflow failed. Checking logs:"
                pm2 logs fairshare-backend --lines 50 --nostream
                exit 1
             fi

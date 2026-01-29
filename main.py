@@ -152,6 +152,15 @@ async def health_check():
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
+    # Initialize Redis
+    try:
+        from redis_client import redis_client
+        await redis_client.connect()
+        print("✅ Redis connected successfully")
+    except Exception as e:
+        print(f"⚠️ Redis connection failed: {e}")
+        print("   Continuing without Redis caching...")
+    
     init_db()
     
     # Auto-seed demo users if DB is empty
@@ -211,6 +220,17 @@ async def startup_event():
     print("SQLite Database initialized successfully!")
     port = os.getenv("PORT", "8005")
     print(f"API Documentation available at: http://localhost:{port}/docs")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close Redis connection on shutdown"""
+    try:
+        from redis_client import redis_client
+        await redis_client.close()
+        print("❌ Redis connection closed")
+    except Exception as e:
+        print(f"Error closing Redis: {e}")
+
 
 
 if __name__ == "__main__":

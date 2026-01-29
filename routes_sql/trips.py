@@ -11,9 +11,59 @@ from .notifications import send_notification_sql
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
+# Import Redis client
+try:
+    from redis_client import redis_client
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    print("⚠️ Redis client not available for trips routes")
+
+# Helper function to invalidate trip caches
+async def invalidate_trip_cache(trip_id: int = None, user_id: int = None):
+    """Invalidate trip-related caches"""
+    if not REDIS_AVAILABLE:
+        return
+    
+    try:
+        # Invalidate specific trip cache
+        if trip_id:
+            await redis_client.delete(f"trip:details:{trip_id}")
+            await redis_client.delete(f"trip:summary:{trip_id}")
+            await redis_client.delete(f"trip:members:{trip_id}")
+        
+        # Invalidate user's trips list cache
+        if user_id:
+            await redis_client.delete(f"trips:user:{user_id}")
+        
+        # Invalidate all trips cache
+        await redis_client.delete("trips:all")
+        
+        print(f"🗑️ Cache invalidated for trip_id={trip_id}, user_id={user_id}")
+    except Exception as e:
+        print(f"Error invalidating cache: {e}")
+
 @router.get("/", response_model=List[TripSchema])
-def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+async def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get all trips or trips for a specific user"""
+    
+    # Create cache key
+    if user_id:
+        cache_key = f"trips:user:{user_id}:skip{skip}:limit{limit}"
+    else:
+        cache_key = f"trips:all:skip{skip}:limit{limit}"
+    
+    # Try cache first
+    if REDIS_AVAILABLE:
+        try:
+            cached = await redis_client.get(cache_key)
+            if cached:
+                print(f"✅ Cache HIT: {cache_key}")
+                return cached
+        except Exception as e:
+            print(f"Redis GET error: {e}")
+    
+    # Get from database
     if user_id:
         # Trips where user is a member
         trips = db.query(Trip).join(Trip.members).filter(User.id == user_id).offset(skip).limit(limit).all()
@@ -33,11 +83,36 @@ def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db
         return all_trips
     else:
         trips = db.query(Trip).offset(skip).limit(limit).all()
-    return trips
+    
+    # Cache the result for 5 minutes (300 seconds)
+    if REDIS_AVAILABLE:
+        try:
+            # Convert to dict for caching
+            result = all_trips if user_id else trips
+            await redis_client.set(cache_key, result, expire=300)
+            print(f"💾 Cached: {cache_key}")
+        except Exception as e:
+            print(f"Redis SET error: {e}")
+    
+    return all_trips if user_id else trips
+
 
 @router.get("/{trip_id}/", response_model=TripSchema)
-def get_trip(trip_id: int, db: Session = Depends(get_db)):
+async def get_trip(trip_id: int, db: Session = Depends(get_db)):
     """Get a specific trip"""
+    cache_key = f"trip:details:{trip_id}"
+    
+    # Try cache first
+    if REDIS_AVAILABLE:
+        try:
+            cached = await redis_client.get(cache_key)
+            if cached:
+                print(f"✅ Cache HIT: {cache_key}")
+                return cached
+        except Exception as e:
+            print(f"Redis GET error: {e}")
+    
+    # Get from database
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
@@ -45,7 +120,17 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
     if trip.destination:
         imgs = db.query(DestinationImage).filter(DestinationImage.destination.like(f"{trip.destination}%")).all()
         trip.image_urls = [img.image_url for img in imgs] if imgs else []
+    
+    # Cache for 10 minutes (600 seconds)
+    if REDIS_AVAILABLE:
+        try:
+            await redis_client.set(cache_key, trip, expire=600)
+            print(f"💾 Cached: {cache_key}")
+        except Exception as e:
+            print(f"Redis SET error: {e}")
+    
     return trip
+
 
 @router.post("/", response_model=TripSchema, status_code=status.HTTP_201_CREATED)
 def create_trip(trip: TripCreate, creator_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

@@ -82,6 +82,15 @@ app.add_middleware(
 
 app.add_middleware(ETagMiddleware)
 
+# Add Redis cache middleware for automatic caching of all GET requests
+try:
+    from middleware.cache_middleware import RedisCacheMiddleware
+    app.add_middleware(RedisCacheMiddleware, redis_available=True)
+    print("✅ Redis cache middleware enabled")
+except Exception as e:
+    print(f"⚠️ Redis cache middleware not available: {e}")
+
+
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 

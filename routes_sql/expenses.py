@@ -64,6 +64,7 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
         amount=expense.amount,
         currency=expense.currency,
         category=expense.category,
+        custom_category=expense.custom_category,
         location=expense.location,
         split_type=expense.split_type,
         split_data=expense.split_data,

@@ -24,6 +24,7 @@ class ExpenseCategory(str, enum.Enum):
     ACCOMMODATION = "accommodation"
     ENTERTAINMENT = "entertainment"
     SHOPPING = "shopping"
+    TICKETS = "tickets"
     OTHER = "other"
 
 class ExpenseStatus(str, enum.Enum):
@@ -189,12 +190,13 @@ class Trip(Base):
     expenses = relationship("Expense", back_populates="trip", cascade="all, delete-orphan")
     itinerary_days = relationship("ItineraryDay", back_populates="trip", cascade="all, delete-orphan")
     checklist_items = relationship("ChecklistItem", back_populates="trip", cascade="all, delete-orphan")
-    photos = relationship("Photo", back_populates="trip")
-    polls = relationship("Poll", back_populates="trip")
-    bucket_list_items = relationship("BucketListItem", back_populates="trip")
-    accommodations = relationship("Accommodation", back_populates="trip")
-    transports = relationship("Transport", back_populates="trip")
-    settlements = relationship("Settlement", back_populates="trip")
+    photos = relationship("Photo", back_populates="trip", cascade="all, delete-orphan")
+    polls = relationship("Poll", back_populates="trip", cascade="all, delete-orphan")
+    bucket_list_items = relationship("BucketListItem", back_populates="trip", cascade="all, delete-orphan")
+    accommodations = relationship("Accommodation", back_populates="trip", cascade="all, delete-orphan")
+    transports = relationship("Transport", back_populates="trip", cascade="all, delete-orphan")
+    settlements = relationship("Settlement", back_populates="trip", cascade="all, delete-orphan")
+    recurring_expenses = relationship("RecurringExpense", cascade="all, delete-orphan")
 
 class Expense(Base):
     __tablename__ = "expenses"
@@ -211,6 +213,8 @@ class Expense(Base):
     
     receipt_url = Column(String, nullable=True)
     location = Column(String, nullable=True)
+    
+    custom_category = Column(String, nullable=True)
     
     # Split details
     split_type = Column(String, default="equal") # equal, percentage, custom, shares

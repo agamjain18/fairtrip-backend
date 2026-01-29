@@ -9,13 +9,28 @@ from collections import defaultdict
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
+from beanie.odm.operators.find.logical import Or
+from bson import ObjectId
+
 @router.get("/", response_model=List[ExpenseSchema])
-async def get_expenses(trip_id: Optional[str] = None, skip: int = 0, limit: int = 100):
-    """Get all expenses or expenses for a specific trip"""
+async def get_expenses(trip_id: Optional[str] = None, user_id: Optional[str] = None, skip: int = 0, limit: int = 100):
+    """Get all expenses or expenses for a specific trip or user"""
     if trip_id:
-        expenses = await Expense.find(Expense.trip.id == trip_id).skip(skip).limit(limit).to_list()
+        expenses = await Expense.find(Expense.trip.id == trip_id).sort("-expense_date").skip(skip).limit(limit).to_list()
+    elif user_id:
+        try:
+            uid_obj = ObjectId(user_id)
+        except:
+            return []
+            
+        expenses = await Expense.find(
+            Or(
+                Expense.paid_by.id == uid_obj,
+                Expense.participants.id == uid_obj
+            )
+        ).sort("-expense_date").skip(skip).limit(limit).to_list()
     else:
-        expenses = await Expense.find_all().skip(skip).limit(limit).to_list()
+        expenses = await Expense.find_all().sort("-expense_date").skip(skip).limit(limit).to_list()
     return expenses
 
 @router.get("/{expense_id}", response_model=ExpenseSchema)

@@ -16,6 +16,7 @@ class ExpenseCategoryEnum(str, Enum):
     ACCOMMODATION = "accommodation"
     ENTERTAINMENT = "entertainment"
     SHOPPING = "shopping"
+    TICKETS = "tickets"
     OTHER = "other"
 
 class ExpenseStatusEnum(str, Enum):
@@ -143,6 +144,7 @@ class ExpenseBase(BaseModel):
     split_type: Optional[str] = "equal"
     split_data: Optional[str] = None
     expense_date: Optional[datetime] = None
+    custom_category: Optional[str] = None
 
 class ExpenseCreate(ExpenseBase):
     trip_id: int
@@ -162,6 +164,7 @@ class Expense(ExpenseBase):
     id: int
     trip_id: int
     trip_title: Optional[str] = None
+    custom_category: Optional[str] = None
     paid_by_id: int
     status: ExpenseStatusEnum
     receipt_url: Optional[str] = None

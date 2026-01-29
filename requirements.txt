@@ -17,6 +17,7 @@ beautifulsoup4
 xxhash
 httpx
 firebase-admin
+redis==5.0.1
 
 
 

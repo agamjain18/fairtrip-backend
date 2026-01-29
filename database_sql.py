@@ -102,6 +102,10 @@ class User(Base):
     payment_methods = relationship("PaymentMethod", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
 
+    @property
+    def trips_count(self):
+        return len(self.trips)
+
 class Friendship(Base):
     __tablename__ = "friendships"
     id = Column(Integer, primary_key=True, index=True)

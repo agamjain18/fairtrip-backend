@@ -71,6 +71,7 @@ class User(UserBase):
     total_balance: float
     amount_to_receive: float
     amount_to_pay: float
+    trips_count: Optional[int] = 0
     friend_code: Optional[str] = None
     created_at: datetime
     
@@ -465,11 +466,16 @@ class ResetPasswordRequest(BaseModel):
     otp_code: str
     new_password: str
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class SocialLoginRequest(BaseModel):
     provider: str  # 'google' or 'apple'
     email: str
     display_name: str
     id_token: str
+    photo_url: Optional[str] = None
 
 # Settlement Schemas
 class SettlementBase(BaseModel):

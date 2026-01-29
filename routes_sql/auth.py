@@ -10,7 +10,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 from database_sql import get_db, User, OTP
-from schemas_sql import Token, LoginRequest, UserCreate, User as UserSchema, ForgotPasswordRequest, VerifyOTPRequest, ResetPasswordRequest, SocialLoginRequest
+from schemas_sql import Token, LoginRequest, UserCreate, User as UserSchema, ForgotPasswordRequest, VerifyOTPRequest, ResetPasswordRequest, SocialLoginRequest, ChangePasswordRequest
+
+
 import os
 import random
 import string
@@ -542,6 +544,12 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
     if user:
         # User already exists - just login
         print(f"Existing user login: {social_data.email} via {social_data.provider}")
+        
+        # Update avatar if missing and provided by social login
+        if not user.avatar_url and social_data.photo_url:
+            user.avatar_url = social_data.photo_url
+            db.commit()
+            
     else:
         # Check if username already exists to avoid duplicates
         base_username = social_data.email.split('@')[0]
@@ -560,7 +568,7 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
             username=username,
             full_name=social_data.display_name or social_data.email.split('@')[0],
             password_hash=hash_password(random_password),
-            avatar_url=None,
+            avatar_url=social_data.photo_url,  # Use provided photo URL
             phone=None,
             bio=None,
             friend_code=generate_friend_code(),
@@ -617,3 +625,27 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
         background_tasks.add_task(send_welcome_email, user.email, user.full_name)
     
     return {"access_token": access_token, "token_type": "bearer", "is_new_user": is_new_user}
+
+@router.post("/change-password")
+def change_password(
+    request: ChangePasswordRequest, 
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
+):
+    """Change user password"""
+    # 1. Verify old password
+    if not verify_password(request.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect old password"
+        )
+    
+    # 2. Update to new password
+    current_user.password_hash = hash_password(request.new_password)
+    current_user.updated_at = datetime.now(timezone.utc)
+    
+    db.commit()
+    
+    return {"message": "Password changed successfully"}
+
+

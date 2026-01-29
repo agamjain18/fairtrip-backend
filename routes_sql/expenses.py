@@ -57,6 +57,33 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
     if expense.participant_ids:
         participants = db.query(User).filter(User.id.in_(expense.participant_ids)).all()
         
+    # Calculate and freeze split details if using equal split
+    final_split_data = expense.split_data
+    if expense.split_type == "equal" and participants:
+        count = len(participants)
+        if count > 0:
+            share_val = round(expense.amount / count, 2)
+            # Create a dictionary of user_id -> amount
+            shares = {str(p.id): share_val for p in participants}
+            
+            # Handle remainder to ensure sum matches exactly? 
+            # (Optional but good practice: Add remainder to payer or first person)
+            current_sum = share_val * count
+            diff = round(expense.amount - current_sum, 2)
+            if diff != 0 and participants:
+                # Add diff to the paid_by user if in participants, otherwise first participant
+                target_id = str(expense.paid_by_id)
+                if target_id in shares:
+                    shares[target_id] = round(shares[target_id] + diff, 2)
+                else:
+                     first_id = str(participants[0].id)
+                     shares[first_id] = round(shares[first_id] + diff, 2)
+
+            # Store as string if schema expects string, or dict if column handles it.
+            # Schema ExpenseCreate defines split_data as Optional[str].
+            import json
+            final_split_data = json.dumps(shares)
+
     db_expense = Expense(
         trip_id=expense.trip_id,
         title=expense.title,
@@ -67,7 +94,7 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
         custom_category=expense.custom_category,
         location=expense.location,
         split_type=expense.split_type,
-        split_data=expense.split_data,
+        split_data=final_split_data,
         expense_date=expense.expense_date or datetime.now(timezone.utc),
         paid_by_id=expense.paid_by_id,
         participants=participants,

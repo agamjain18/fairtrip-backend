@@ -17,8 +17,10 @@ def generate_friend_code(k=8):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 UPLOAD_DIRECTORY = "uploads"
-if not os.path.exists(UPLOAD_DIRECTORY):
-    os.makedirs(UPLOAD_DIRECTORY)
+PROFILE_PICS_DIR = os.path.join(UPLOAD_DIRECTORY, "profile_pics")
+
+if not os.path.exists(PROFILE_PICS_DIR):
+    os.makedirs(PROFILE_PICS_DIR, exist_ok=True)
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -37,14 +39,14 @@ def upload_avatar(
         # Create unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"avatar_{current_user.id}_{timestamp}_{file.filename}"
-        file_path = os.path.join(UPLOAD_DIRECTORY, filename)
+        file_path = os.path.join(PROFILE_PICS_DIR, filename)
 
         # Save file to disk
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # Generate URL
-        url = f"/static/{filename}"
+        url = f"/static/profile_pics/{filename}"
 
         # Update user record
         current_user.avatar_url = url

@@ -113,10 +113,10 @@ async def get_all_cities(skip: int = 0, limit: int = 100, db: Session = Depends(
             "id": city.id,
             "name": city.name,
             "state": city.state,
-            "country": city.country,
             "latitude": city.latitude,
             "longitude": city.longitude,
-            "image_url": city.image_url
+            "emergency_numbers": city.emergency_numbers,
+            "popular_spots": city.popular_spots
         }
         for city in cities
     ]

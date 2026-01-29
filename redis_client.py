@@ -27,8 +27,14 @@ class RedisClient:
     async def connect(self) -> Redis:
         """Initialize Redis connection"""
         if self.client is None:
+            # Build Redis URL based on whether password is set
+            if self.password:
+                redis_url = f"redis://:{self.password}@{self.host}:{self.port}/{self.db}"
+            else:
+                redis_url = f"redis://{self.host}:{self.port}/{self.db}"
+            
             self.client = await aioredis.from_url(
-                f"redis://:{self.password}@{self.host}:{self.port}/{self.db}",
+                redis_url,
                 encoding="utf-8",
                 decode_responses=True,
                 socket_connect_timeout=5,

@@ -8,10 +8,19 @@ from datetime import datetime, timezone, timedelta
 router = APIRouter(prefix="/recurring-expenses", tags=["recurring-expenses"])
 
 @router.get("/", response_model=List[RecurringExpenseSchema])
-def get_recurring_expenses(trip_id: Optional[int] = None, is_active: Optional[bool] = None, db: Session = Depends(get_db)):
-    """Get all recurring expenses"""
+def get_recurring_expenses(
+    user_id: Optional[int] = None,
+    trip_id: Optional[int] = None, 
+    is_active: Optional[bool] = None, 
+    db: Session = Depends(get_db)
+):
+    """Get all recurring expenses or filtered by user/trip"""
     query = db.query(RecurringExpense)
     
+    if user_id:
+        # Filter recurring expenses where user is the payer
+        query = query.filter(RecurringExpense.paid_by_id == user_id)
+        
     if trip_id:
         query = query.filter(RecurringExpense.trip_id == trip_id)
     

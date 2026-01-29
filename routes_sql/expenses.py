@@ -12,12 +12,26 @@ from collections import defaultdict
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 @router.get("/", response_model=List[ExpenseSchema])
-def get_expenses(trip_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get all expenses or expenses for a specific trip"""
+def get_expenses(
+    user_id: Optional[int] = None,
+    trip_id: Optional[int] = None, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    """Get all expenses or expenses for a specific trip/user"""
     query = db.query(Expense)
+    
+    if user_id:
+        # Filter expenses where user is payer OR participant
+        query = query.join(Expense.participants, isouter=True).filter(
+            (Expense.paid_by_id == user_id) | (User.id == user_id)
+        ).distinct()
+        
     if trip_id:
         query = query.filter(Expense.trip_id == trip_id)
-    expenses = query.offset(skip).limit(limit).all()
+        
+    expenses = query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
     
     # Populate trip_title
     for e in expenses:
@@ -361,9 +375,16 @@ def get_trip_daily_analytics(trip_id: int, db: Session = Depends(get_db)):
     return result
 
 @router.get("/trip/{trip_id}/", response_model=List[ExpenseSchema])
-def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
-    """Get all expenses for a specific trip"""
-    expenses = db.query(Expense).filter(Expense.trip_id == trip_id).all()
+def get_trip_expenses(trip_id: int, user_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get all expenses for a specific trip, optionally filtered by user"""
+    query = db.query(Expense).filter(Expense.trip_id == trip_id)
+    
+    if user_id:
+        query = query.join(Expense.participants, isouter=True).filter(
+            (Expense.paid_by_id == user_id) | (User.id == user_id)
+        ).distinct()
+        
+    expenses = query.order_by(Expense.expense_date.desc()).all()
     return expenses
 
 @router.get("/user/{user_id}/", response_model=List[ExpenseSchema])

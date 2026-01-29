@@ -56,3 +56,17 @@ async def upload_receipt(
 async def get_trip_receipts(trip_id: str):
     receipts = await Photo.find(Photo.trip == PydanticObjectId(trip_id)).sort(-Photo.uploaded_at).to_list()
     return receipts
+
+@router.get("/maps/fleet_dashboard")
+async def get_fleet_dashboard_map():
+    # Example data; replace with database query
+    return {
+        "mapUrl": "https://maps.googleapis.com/maps/api/staticmap?center=LAX&zoom=14&size=600x300&maptype=roadmap&key=YOUR_API_KEY"
+    }
+
+@router.get("/maps/visa_entry_info")
+async def get_visa_entry_info_map():
+    # Example data; replace with database query
+    return {
+        "mapUrl": "https://maps.googleapis.com/maps/api/staticmap?center=Tokyo&zoom=9&size=600x300&maptype=terrain&key=YOUR_API_KEY"
+    }

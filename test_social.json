@@ -1,0 +1,6 @@
+{
+    "provider": "google",
+    "email": "test@example.com",
+    "display_name": "Test User",
+    "id_token": "mock_token"
+}

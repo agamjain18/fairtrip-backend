@@ -1,97 +1,105 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List
-from database import get_db, ChecklistItem, User, checklist_assignees
+from database import ChecklistItem, User, Trip
 from schemas import ChecklistItem as ChecklistItemSchema, ChecklistItemCreate, ChecklistItemUpdate
-from datetime import datetime
+from datetime import datetime, timezone
+from beanie import PydanticObjectId, Link
 
 router = APIRouter(prefix="/checklist", tags=["checklist"])
 
 @router.get("/trip/{trip_id}", response_model=List[ChecklistItemSchema])
-def get_checklist_items(trip_id: int, db: Session = Depends(get_db)):
+async def get_checklist_items(trip_id: str):
     """Get all checklist items for a trip"""
-    items = db.query(ChecklistItem).filter(ChecklistItem.trip_id == trip_id).all()
+    items = await ChecklistItem.find(ChecklistItem.trip.id == PydanticObjectId(trip_id)).to_list()
     return items
 
 @router.get("/{item_id}", response_model=ChecklistItemSchema)
-def get_checklist_item(item_id: int, db: Session = Depends(get_db)):
+async def get_checklist_item(item_id: str):
     """Get a specific checklist item"""
-    item = db.query(ChecklistItem).filter(ChecklistItem.id == item_id).first()
+    item = await ChecklistItem.get(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Checklist item not found")
     return item
 
 @router.post("/", response_model=ChecklistItemSchema, status_code=status.HTTP_201_CREATED)
-def create_checklist_item(item: ChecklistItemCreate, db: Session = Depends(get_db)):
+async def create_checklist_item(item: ChecklistItemCreate):
     """Create a new checklist item"""
-    item_data = item.dict(exclude={'assignee_ids'})
-    db_item = ChecklistItem(**item_data)
-    
-    db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
-    
-    # Add assignees
+    trip = await Trip.get(item.trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    assignees = []
     if item.assignee_ids:
-        assignees = db.query(User).filter(User.id.in_(item.assignee_ids)).all()
-        db_item.assignees.extend(assignees)
-        db.commit()
-    
+        for uid in item.assignee_ids:
+            user = await User.get(uid)
+            if user:
+                assignees.append(user)
+
+    db_item = ChecklistItem(
+        trip=trip,
+        title=item.title,
+        description=item.description,
+        category=item.category,
+        priority=item.priority,
+        due_date=item.due_date,
+        assignees=assignees,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    await db_item.insert()
     return db_item
 
 @router.put("/{item_id}", response_model=ChecklistItemSchema)
-def update_checklist_item(item_id: int, item_update: ChecklistItemUpdate, db: Session = Depends(get_db)):
+async def update_checklist_item(item_id: str, item_update: ChecklistItemUpdate):
     """Update checklist item"""
-    item = db.query(ChecklistItem).filter(ChecklistItem.id == item_id).first()
+    item = await ChecklistItem.get(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Checklist item not found")
     
     update_data = item_update.dict(exclude_unset=True)
     
     # Handle completion
-    if 'is_completed' in update_data and update_data['is_completed'] and not item.is_completed:
-        item.completed_at = datetime.utcnow()
-    elif 'is_completed' in update_data and not update_data['is_completed']:
-        item.completed_at = None
+    if 'is_completed' in update_data:
+        if update_data['is_completed'] and not item.is_completed:
+            item.completed_at = datetime.now(timezone.utc)
+        elif not update_data['is_completed']:
+            item.completed_at = None
     
-    for field, value in update_data.items():
-        setattr(item, field, value)
-    
-    item.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(item)
+    if update_data:
+        await item.set(update_data)
+        item.updated_at = datetime.now(timezone.utc)
+        await item.save()
+
     return item
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_checklist_item(item_id: int, db: Session = Depends(get_db)):
+async def delete_checklist_item(item_id: str):
     """Delete a checklist item"""
-    item = db.query(ChecklistItem).filter(ChecklistItem.id == item_id).first()
+    item = await ChecklistItem.get(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Checklist item not found")
     
-    db.delete(item)
-    db.commit()
+    await item.delete()
     return None
 
 @router.post("/{item_id}/toggle")
-def toggle_checklist_item(item_id: int, db: Session = Depends(get_db)):
+async def toggle_checklist_item(item_id: str):
     """Toggle checklist item completion status"""
-    item = db.query(ChecklistItem).filter(ChecklistItem.id == item_id).first()
+    item = await ChecklistItem.get(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Checklist item not found")
     
     item.is_completed = not item.is_completed
-    item.completed_at = datetime.utcnow() if item.is_completed else None
-    item.updated_at = datetime.utcnow()
+    item.completed_at = datetime.now(timezone.utc) if item.is_completed else None
+    item.updated_at = datetime.now(timezone.utc)
     
-    db.commit()
-    db.refresh(item)
+    await item.save()
     return item
 
 @router.get("/trip/{trip_id}/summary")
-def get_checklist_summary(trip_id: int, db: Session = Depends(get_db)):
+async def get_checklist_summary(trip_id: str):
     """Get checklist summary for a trip"""
-    items = db.query(ChecklistItem).filter(ChecklistItem.trip_id == trip_id).all()
+    items = await ChecklistItem.find(ChecklistItem.trip.id == PydanticObjectId(trip_id)).to_list()
     
     total = len(items)
     completed = sum(1 for item in items if item.is_completed)

@@ -56,15 +56,15 @@ python main.py
 
 Or use uvicorn directly:
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8005
 ```
 
 ## 📚 API Documentation
 
 Once the server is running, access the interactive API documentation:
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:8005/docs
+- **ReDoc**: http://localhost:8005/redoc
 
 ## 🔐 Authentication
 

@@ -39,6 +39,16 @@ class RedisCacheMiddleware(BaseHTTPMiddleware):
         if not self.redis_available:
             return await call_next(request)
         
+        # Quick health check - skip caching if Redis is not responding
+        try:
+            # Try a quick ping (will timeout in 1 second now)
+            if not await self.redis_client.ping():
+                # Redis not responding, skip caching for this request
+                return await call_next(request)
+        except Exception:
+            # Redis error, skip caching for this request
+            return await call_next(request)
+        
         # Generate cache key
         cache_key = self._generate_cache_key(request)
         

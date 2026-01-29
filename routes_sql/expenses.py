@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from database_sql import get_db, Expense, Trip, User, Dispute, expense_participants, increment_trip_members_version, Settlement
+from database_sql import get_db, Expense, Trip, User, Dispute, expense_participants, trip_members, increment_trip_members_version, Settlement
 from .notifications import send_notification_sql
 from schemas_sql import Expense as ExpenseSchema, ExpenseCreate, ExpenseUpdate, User as UserSchema
 

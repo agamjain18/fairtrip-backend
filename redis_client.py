@@ -37,8 +37,8 @@ class RedisClient:
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
+                socket_connect_timeout=1,  # Reduced from 5 to 1 second
+                socket_timeout=1,          # Reduced from 5 to 1 second
                 max_connections=50
             )
         return self.client

@@ -24,6 +24,34 @@ def get_accommodation(accommodation_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Accommodation not found")
     return accommodation
 
+# Directory to save booking confirmations
+import os
+import uuid
+import shutil
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BOOKINGS_DIR = os.path.join(BASE_DIR, "uploads", "bookings")
+if not os.path.exists(BOOKINGS_DIR):
+    os.makedirs(BOOKINGS_DIR)
+
+from fastapi import UploadFile, File
+
+@router.post("/upload-booking")
+async def upload_booking(file: UploadFile = File(...)):
+    """Upload a booking confirmation PDF/Image and return its static URL"""
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ['.pdf', '.png', '.jpg', '.jpeg']:
+        raise HTTPException(status_code=400, detail="Only PDF and images are supported")
+    
+    # Generate unique filename
+    filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(BOOKINGS_DIR, filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Return the relative URL served by StaticFiles
+    return {"url": f"/static/bookings/{filename}"}
+
 @router.post("/", response_model=AccommodationSchema, status_code=status.HTTP_201_CREATED)
 def create_accommodation(accommodation: AccommodationCreate, db: Session = Depends(get_db)):
     """Create a new accommodation"""
@@ -45,6 +73,7 @@ def create_accommodation(accommodation: AccommodationCreate, db: Session = Depen
         google_maps_url=accommodation.google_maps_url,
         latitude=accommodation.latitude,
         longitude=accommodation.longitude,
+        confirmation_url=accommodation.confirmation_url,
         created_at=datetime.now(timezone.utc)
     )
     
@@ -76,6 +105,7 @@ def update_accommodation(accommodation_id: int, accommodation: AccommodationCrea
     db_accommodation.google_maps_url = accommodation.google_maps_url
     db_accommodation.latitude = accommodation.latitude
     db_accommodation.longitude = accommodation.longitude
+    db_accommodation.confirmation_url = accommodation.confirmation_url
     
     db.commit()
     db.refresh(db_accommodation)

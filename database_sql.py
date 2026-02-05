@@ -396,6 +396,7 @@ class Accommodation(Base):
     google_maps_url = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    confirmation_url = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

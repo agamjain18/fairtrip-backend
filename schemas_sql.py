@@ -343,6 +343,7 @@ class AccommodationBase(BaseModel):
     google_maps_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    confirmation_url: Optional[str] = None
 
 class AccommodationCreate(AccommodationBase):
     trip_id: int

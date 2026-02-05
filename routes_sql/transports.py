@@ -125,57 +125,36 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         
         ticket_url = f"/static/tickets/{saved_filename}"
 
-        # Extract text from PDF using pypdf
-        reader = PdfReader(tmp_path)
-        extracted_text = ""
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                extracted_text += text + "\n"
+        # Use the new deterministic PDFAnalysisService
+        from services.pdf_service import PDFAnalysisService
+        pdf_service = PDFAnalysisService()
+        result = pdf_service.analyze_pdf(tmp_path)
         
-        # Limit text size for context window if necessary (Llama3-70b has 8k context, usually enough for tickets)
-        if len(extracted_text) > 20000:
-            extracted_text = extracted_text[:20000] + "\n[Truncated]"
+        if result["status"] == "error":
+            raise HTTPException(status_code=400, detail=result["message"])
 
-        prompt = f"""
-        Extract transport details from this ticket/booking confirmation text.
+        data = result["data"]
         
-        CONTEXT:
-        {extracted_text}
-
-        Provide the following fields in JSON format:
-        - type: (one of: flight, train, bus, car_rental, taxi, boat, other)
-        - carrier: (e.g., Airline name, Train company)
-        - flight_number: (e.g., Flight no, Train no, Bus no)
-        - departure_location: (City/Airport code)
-        - arrival_location: (City/Airport code)
-        - departure_time: (ISO 8601 format if found, otherwise null)
-        - arrival_time: (ISO 8601 format if found, otherwise null)
-        - booking_reference: (PNR or reference)
-        - seat_number: (if available)
-        - cost: (numeric value if available, else 0)
-        - notes: (any other important detail like terminal, gate, etc.)
-
-        Respond ONLY with the JSON object.
-        """
-
-        # Use Groq AI Client
-        response = generate_content_with_fallback(prompt)
-        text = response.text.strip()
+        # Map the service output to the transport fields if necessary
+        # The service returns: booking_reference, date, total_amount, from_location, to_location, type
+        # The frontend expects: type, carrier, flight_number, departure_location, arrival_location, departure_time, arrival_time, booking_reference, seat_number, cost, notes
         
-        # Robust JSON extraction
-        import re
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group())
-        else:
-            # Fallback if no JSON braces found
-            text = text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(text)
-
-        # Add the ticket_url to the returned data
-        data['ticket_url'] = ticket_url
-        return data
+        response_data = {
+            "type": data.get("type", "flight"),
+            "carrier": None, # Non-AI service might not get carrier yet
+            "flight_number": None,
+            "departure_location": data.get("from_location"),
+            "arrival_location": data.get("to_location"),
+            "departure_time": data.get("date"), # Service currently returns date as string
+            "arrival_time": None,
+            "booking_reference": data.get("booking_reference"),
+            "seat_number": None,
+            "cost": data.get("total_amount", 0),
+            "notes": f"Extracted via deterministic rules. {result.get('status')} extraction.",
+            "ticket_url": ticket_url
+        }
+        
+        return response_data
 
     except Exception as e:
         print(f"Extraction Error: {e}")

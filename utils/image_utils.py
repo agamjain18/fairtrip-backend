@@ -25,46 +25,43 @@ async def get_famous_spot_image(destination: str, db: Session) -> str:
     spot_name = destination
     print(f"🌟 Identifying famous spot for {destination}: {spot_name}")
         
-        # 3. Construct URL
-        # We use a high-quality featured search on Unsplash with better keywords
-        # Using a direct URL pattern that often works better than the 'featured' redirect
-        image_url = f"https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80" # Default fallback
-        
-        # Try to generate a more specific keyword-based URL
-        # We'll stick to a more robust unsplash keyword search or a backup provider
-        search_keywords = f"{spot_name.replace(' ', ',')},landscape,landmark,travel"
-        image_url = f"https://source.unsplash.com/1200x800/?{search_keywords}"
-        
-        # If source.unsplash.com is being flaky, we can use a backup like loremflickr
-        # image_url = f"https://loremflickr.com/1200/800/{spot_name.replace(' ', ',')},travel"
-        
-        # Actually, let's use a very high-quality direct reference for Udaipur if it's Udaipur
-        if "udaipur" in spot_name.lower():
-            image_url = "https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80"
-        elif "paris" in spot_name.lower():
-            image_url = "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80"
-        
-        # 4. Save to Cache
-        try:
-            new_cache = DestinationImage(
-                destination=destination,
-                image_url=image_url,
-                famous_spot=spot_name
-            )
-            db.add(new_cache)
-            db.commit()
-            print(f"💾 Cached new image for {destination}")
-        except Exception as cache_error:
-            db.rollback()
-            print(f"⚠️ Cache save error (might be duplicate): {cache_error}")
-            # Try to fetch again in case of race condition
-            cached = db.query(DestinationImage).filter(DestinationImage.destination.ilike(destination)).first()
-            if cached: return cached.image_url
+    # 3. Construct URL
+    # We use a high-quality featured search on Unsplash with better keywords
+    # Using a direct URL pattern that often works better than the 'featured' redirect
+    image_url = f"https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80" # Default fallback
+    
+    # Try to generate a more specific keyword-based URL
+    # We'll stick to a more robust unsplash keyword search or a backup provider
+    search_keywords = f"{spot_name.replace(' ', ',')},landscape,landmark,travel"
+    image_url = f"https://source.unsplash.com/1200x800/?{search_keywords}"
+    
+    # If source.unsplash.com is being flaky, we can use a backup like loremflickr
+    # image_url = f"https://loremflickr.com/1200/800/{spot_name.replace(' ', ',')},travel"
+    
+    # Actually, let's use a very high-quality direct reference for Udaipur if it's Udaipur
+    if "udaipur" in spot_name.lower():
+        image_url = "https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80"
+    elif "paris" in spot_name.lower():
+        image_url = "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80"
+    
+    # 4. Save to Cache
+    try:
+        new_cache = DestinationImage(
+            destination=destination,
+            image_url=image_url,
+            famous_spot=spot_name
+        )
+        db.add(new_cache)
+        db.commit()
+        print(f"💾 Cached new image for {destination}")
+    except Exception as cache_error:
+        db.rollback()
+        print(f"⚠️ Cache save error (might be duplicate): {cache_error}")
+        # Try to fetch again in case of race condition
+        cached = db.query(DestinationImage).filter(DestinationImage.destination.ilike(destination)).first()
+        if cached: return cached.image_url
 
-        return image_url
-    except Exception as e:
-        print(f"❌ Error getting famous spot for {destination}: {e}")
-        return f"https://source.unsplash.com/featured/1200x800?{destination.replace(' ', ',')},travel"
+    return image_url
 
 async def update_trip_image_task(trip_id: int, destination: str, db: Session):
     """

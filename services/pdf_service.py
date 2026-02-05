@@ -78,85 +78,82 @@ class PDFAnalysisService:
         # Regex Patterns
         patterns = {
             "booking_reference": [
-                r"PNR\s*(?:No|Number)?[:\s]*([A-Z0-9]{6,12})",
+                r"PNR[\s*]*(\d{10})", # IRCTC PNR is usually 10 digits
                 r"Booking\s*(?:Ref|Reference|ID|Number)[:\s]*([A-Z0-9]{6,15})",
                 r"Confirmation[:\s]*([A-Z0-9]{6,15})",
                 r"Reservation[:\s]*([A-Z0-9]{6,15})",
                 r"Ticket\s*Number[:\s]*([A-Z0-9-]+)"
             ],
             "date": [
+                r"Start\s*Date\W*([\d]+-[A-Za-z]+-\d{4})", # Match "15-Feb-2026"
                 r"Date\s*of\s*Journey[:\s]+([\d/-]+|[A-Za-z\s\d,]+)",
                 r"Travel\s*Date[:\s]+([\d/-]+)",
                 r"Date[:\s]+([\d/-]+)",
-                r"Check-in[:\s]+([\d/-]+)",
                 r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
                 r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})"
             ],
             "total_amount": [
-                r"Total\s*Fare[:\s]*([\d,.]+)",
+                r"Total\s*Fare[:\s]*[^\d]*([\d,.]+)",
                 r"Total\s*Amount[:\s]*([\d,.]+)",
                 r"Total[:\s]*[\$€£]?\s*([\d,.]+)",
                 r"Amount\s*Paid[:\s]*([\d,.]+)"
             ],
             "from_location": [
-                r"From[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Booked\s*From\s*([A-Za-z\s\(\)]+?)(?=\n|Boarding|To|$)",
+                r"Boarding\s*At\s*([A-Za-z\s\(\)]+?)(?=\n|$)",
                 r"Origin[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
-                r"Departure(?:\s*From)?[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
-                r"Boarding\s*At[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
+                r"From[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
             ],
             "to_location": [
-                r"To[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"To\s*\n\s*([A-Za-z\s\(\)]+?)(?=\n|Arrival|$)",
                 r"Destination[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
                 r"Arrival(?:\s*To)?[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
                 r"Reservation\s*Upto[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
             ],
             "carrier": [
+                r"Train\s*Name[:\s]*([A-Za-z\s]+)",
                 r"Airline(?:\s*Name)?[:\s]*([A-Za-z\s]+)",
                 r"Carrier[:\s]*([A-Za-z\s]+)",
-                r"Operator[:\s]*([A-Za-z\s]+)",
-                r"Bus\s*Company[:\s]*([A-Za-z\s]+)",
-                r"Ship[:\s]*([A-Za-z\s]+)",
-                r"Train\s*Name[:\s]*([A-Za-z\s]+)"
+                r"Operator[:\s]*([A-Za-z\s]+)"
             ],
             "flight_number": [
+                r"Train\s*No\.?/Name\s+(\d{5})",
+                r"(\d{5})/[A-Za-z\s]+", # Match "19316/Virbhumi Exp"
                 r"(?:Flight|Train|Bus|Vehicle)(?:\s*No|Number)?[:\s]*([A-Z0-9\s-]+)",
-                r"Train\s*No\.?\s*(?:&|and)\s*Name[:\s]*(\d{5})",
-                r"(\d{5})\s*/", # Indian Train number pattern before name
-                r"\b([A-Z]{2,3})\s*(\d{3,4})\b", # Flight pattern (e.g., AI 101)
-                r"Vehicle\s*Reg[:\s]*([A-Z0-9\s-]+)"
+                r"\b([A-Z]{2,3})\s*(\d{3,4})\b"
             ],
             "seat_number": [
                 r"Seat\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
                 r"Berth\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
-                r"Room\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
                 r"Coach\s*[:\s]*[A-Z0-9]+\s*(?:Seat|Berth)\s*[/\s]*([A-Z0-9]+)"
             ],
             "departure_time": [
+                r"Departure\W*(\d{1,2}:\d{2})", # Match "Departure* 20:20"
                 r"Departure\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
                 r"Dep\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Starts[:\s]*(\d{1,2}:\d{2})",
-                r"(\d{1,2}:\d{2})\s*(?:Hrs|AM|PM)?\s*Departure"
+                r"Starts[:\s]*(\d{1,2}:\d{2})"
             ],
             "arrival_time": [
+                r"Arrival\W*(\d{1,2}:\d{2})", # Match "Arrival* 07:00"
                 r"Arrival\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
                 r"Arr\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Ends[:\s]*(\d{1,2}:\d{2})",
-                r"(\d{1,2}:\d{2})\s*(?:Hrs|AM|PM)?\s*Arrival"
+                r"Ends[:\s]*(\d{1,2}:\d{2})"
             ]
         }
 
         for key, pattern_list in patterns.items():
             for pattern in pattern_list:
-                match = re.search(pattern, text, re.IGNORECASE)
+                match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
                 if match:
                     data[key] = match.group(1).strip()
                     break
 
         # Detect Type
-        if re.search(r"flight|airline|airways", text, re.IGNORECASE):
-            data["type"] = "flight"
-        elif re.search(r"train|railway|irctc", text, re.IGNORECASE):
+        # If we see IRCTC or Train/Rail, it's a train
+        if re.search(r"IRCTC|139|Railway|resv\s*slip|redRail", text, re.IGNORECASE):
             data["type"] = "train"
+        elif re.search(r"flight|airline|airways", text, re.IGNORECASE):
+            data["type"] = "flight"
         elif re.search(r"hotel|stay|accommodation|resort", text, re.IGNORECASE):
             data["type"] = "hotel"
         elif re.search(r"bus|coach", text, re.IGNORECASE):
@@ -171,22 +168,22 @@ class PDFAnalysisService:
             if not line: continue
             
             # Start of passenger section detection
-            if re.search(r"Passenger\s*Details|Traveller\s*Details|SNo|Passenger\s*Name", line, re.IGNORECASE):
+            if re.search(r"Passenger\s*Details|Traveller\s*Details|Booking\s*Status", line, re.IGNORECASE):
                 passenger_section = True
                 continue
             
-            # 1. Regex for "1 John Doe 30 Male S3 24" (IRCTC style)
-            # Match: (Index) (Name) (Age) (Gender) (Seat/Berth)
-            # Index is often 1-6 chars, Name is 3-30, Age is 1-3, Gender is M/F/Male/Female/etc
-            p_match = re.search(r"^\d+\s+([A-Za-z\s]+?)\s+(\d{1,2})\s+(?:M|F|Male|Female|Boy|Girl|Child)\s+([A-Z0-9/\s]+)", line)
+            # 1. Regex for redRail/IRCTC style: "# Name Age Gender Food Choice Booking Status Current Status"
+            # Line: "1 Atul Jain 22 M No Food RLWL/3/LB RLWL/3/LB"
+            # Pattern: Index Name Age Gender (everything else is status/seat)
+            p_match = re.search(r"^(\d+)\s+([A-Za-z\s]+?)\s+(\d{1,2})\s+([MF])\s+(?:No Food|Veg|Non-Veg)?\s*([A-Z0-9/]+)", line, re.IGNORECASE)
             if p_match:
                 data["passengers"].append({
-                    "name": p_match.group(1).strip(),
-                    "age": int(p_match.group(2)),
-                    "seat": p_match.group(3).strip()
+                    "name": p_match.group(2).strip(),
+                    "age": int(p_match.group(3)),
+                    "seat": p_match.group(5).strip() # Using status as seat if proper seat not found
                 })
                 if not data["seat_number"]:
-                    data["seat_number"] = p_match.group(3).strip()
+                    data["seat_number"] = p_match.group(5).strip()
                 continue
             
             # 2. Regex for "Name: John, Age: 30..."

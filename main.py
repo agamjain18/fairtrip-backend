@@ -139,11 +139,12 @@ app.include_router(cities.router)
 app.include_router(itinerary.router)
 app.include_router(checklist.router)
 app.include_router(misc_new.router)
-from routes_sql import transports, accommodations, emergency, test_services
+from routes_sql import transports, accommodations, emergency, test_services, pdf_analysis
 app.include_router(transports.router)
 app.include_router(accommodations.router)
 app.include_router(emergency.router)
 app.include_router(test_services.router)
+app.include_router(pdf_analysis.router)
 
 @app.get("/")
 async def root():

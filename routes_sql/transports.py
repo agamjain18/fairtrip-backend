@@ -145,7 +145,10 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         
         if dep_date_str and dep_time_str:
             try:
-                iso_departure = f"{dep_date_str}T{dep_time_str}:00"
+                # Ensure time is HH:mm:ss
+                t = dep_time_str if ":" in dep_time_str else f"{dep_time_str}:00"
+                if len(t.split(":")[0]) == 1: t = f"0{t}"
+                iso_departure = f"{dep_date_str}T{t}:00"
             except: pass
 
         if dep_date_str and arr_time_str:
@@ -159,7 +162,9 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
                         d = datetime.strptime(dep_date_str, "%Y-%m-%d")
                         arrival_date_str = (d + timedelta(days=1)).strftime("%Y-%m-%d")
                 
-                iso_arrival = f"{arrival_date_str}T{arr_time_str}:00"
+                t = arr_time_str if ":" in arr_time_str else f"{arr_time_str}:00"
+                if len(t.split(":")[0]) == 1: t = f"0{t}"
+                iso_arrival = f"{arrival_date_str}T{t}:00"
             except: pass
 
         response_data = {
@@ -182,6 +187,7 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
             "ticket_url": ticket_url
         }
         
+        print(f"DEBUG: Final Response Data -> {json.dumps(response_data, indent=2)}")
         return response_data
 
     except Exception as e:

@@ -134,24 +134,23 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
 
         data = result["data"]
         
-        # Combine date and time into ISO 8601 with India offset (+05:30)
-        # Service returns date as "YYYY-MM-DD" and time as "HH:mm"
+        # Combine date and time into ISO 8601 strings
         dep_date_str = data.get("date")
-        dep_time_str = data.get("departure_time")
-        arr_time_str = data.get("arrival_time")
+        dep_time_str = data.get("departure_time") # HH:mm
+        arr_time_str = data.get("arrival_time")   # HH:mm
 
         iso_departure = None
         iso_arrival = None
+        arrival_date_str = dep_date_str
         
         if dep_date_str and dep_time_str:
             try:
-                # Return naive ISO string to store 'actual' ticket time without adjustment
                 iso_departure = f"{dep_date_str}T{dep_time_str}:00"
             except: pass
 
         if dep_date_str and arr_time_str:
             try:
-                arrival_date_str = dep_date_str
+                # Handle next-day arrival
                 if dep_time_str:
                     dep_h = int(dep_time_str.split(':')[0])
                     arr_h = int(arr_time_str.split(':')[0])
@@ -171,6 +170,10 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
             "arrival_location": data.get("to_location"),
             "departure_time": iso_departure,
             "arrival_time": iso_arrival,
+            "departure_date": dep_date_str,
+            "arrival_date": arrival_date_str,
+            "departure_time_raw": dep_time_str,
+            "arrival_time_raw": arr_time_str,
             "booking_reference": data.get("booking_reference"),
             "seat_number": data.get("seat_number"),
             "cost": data.get("total_amount", 0),

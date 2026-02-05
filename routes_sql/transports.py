@@ -134,19 +134,43 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
 
         data = result["data"]
         
-        # Map the service output to the transport fields if necessary
-        # The service returns: booking_reference, date, total_amount, from_location, to_location, type
-        # The frontend expects: type, carrier, flight_number, departure_location, arrival_location, departure_time, arrival_time, booking_reference, seat_number, cost, notes
+        # Combine date and time into ISO 8601 with India offset (+05:30)
+        # Service returns date as "YYYY-MM-DD" and time as "HH:mm"
+        dep_date_str = data.get("date")
+        dep_time_str = data.get("departure_time")
+        arr_time_str = data.get("arrival_time")
+
+        iso_departure = None
+        iso_arrival = None
         
+        if dep_date_str and dep_time_str:
+            try:
+                # Return naive ISO string to store 'actual' ticket time without adjustment
+                iso_departure = f"{dep_date_str}T{dep_time_str}:00"
+            except: pass
+
+        if dep_date_str and arr_time_str:
+            try:
+                arrival_date_str = dep_date_str
+                if dep_time_str:
+                    dep_h = int(dep_time_str.split(':')[0])
+                    arr_h = int(arr_time_str.split(':')[0])
+                    if arr_h < dep_h:
+                        from datetime import datetime, timedelta
+                        d = datetime.strptime(dep_date_str, "%Y-%m-%d")
+                        arrival_date_str = (d + timedelta(days=1)).strftime("%Y-%m-%d")
+                
+                iso_arrival = f"{arrival_date_str}T{arr_time_str}:00"
+            except: pass
+
         response_data = {
             "type": data.get("type", "flight"),
             "carrier": data.get("carrier"),
             "flight_number": data.get("flight_number"),
             "departure_location": data.get("from_location"),
             "arrival_location": data.get("to_location"),
-            "departure_date": data.get("date"),
-            "departure_time": data.get("departure_time"),
-            "arrival_time": data.get("arrival_time"),
+            "departure_time": iso_departure,
+            "arrival_time": iso_arrival,
             "booking_reference": data.get("booking_reference"),
             "seat_number": data.get("seat_number"),
             "cost": data.get("total_amount", 0),

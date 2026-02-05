@@ -95,6 +95,40 @@ class PDFAnalysisService:
             if train_match_alt:
                 data["flight_number"] = train_match_alt.group(1)
                 data["carrier"] = train_match_alt.group(2).strip()
+        
+        # 4. Refined Time Extraction & Normalization
+        time_pattern = r'(\d{1,2}:\d{2}(?:\s?[AP]M)?)'
+        times = re.findall(time_pattern, text, re.IGNORECASE)
+        
+        extracted_times = []
+        for t_str in times:
+            t_str = t_str.strip().upper()
+            try:
+                # Try parsing as 12h format first
+                if "AM" in t_str or "PM" in t_str:
+                    t_obj = datetime.strptime(t_str, "%I:%M %p" if " " in t_str else "%I:%M%p")
+                else:
+                    # Assume 24h format
+                    t_obj = datetime.strptime(t_str, "%H:%M")
+                extracted_times.append(t_obj.strftime("%H:%M"))
+            except:
+                # If parsing fails, just keep digits if it looks like HH:mm
+                match = re.search(r'(\d{1,2}:\d{2})', t_str)
+                if match: extracted_times.append(match.group(1))
+
+        if len(extracted_times) >= 1:
+            data["departure_time"] = extracted_times[0]
+        if len(extracted_times) >= 2:
+            data["arrival_time"] = extracted_times[1]
+        
+        # If we didn't find specific times, look for specific train context
+        if not data["departure_time"]:
+            dep_match = re.search(r'(?:Departure|Dep|Starts|Time)\s*:?\s*(\d{1,2}:\d{2})', text, re.IGNORECASE)
+            if dep_match: data["departure_time"] = dep_match.group(1)
+            
+        if not data["arrival_time"]:
+            arr_match = re.search(r'(?:Arrival|Arr|Ends)\s*:?\s*(\d{1,2}:\d{2})', text, re.IGNORECASE)
+            if arr_match: data["arrival_time"] = arr_match.group(1)
 
         # 3. Robust Station Extraction: Scan line by line for multiple stations
         # This is more robust than matching headers which can be mis-parsed

@@ -1,11 +1,9 @@
-
-import google.generativeai as genai
 import os
 import asyncio
-from typing import Optional
+import httpx
+from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from database_sql import Trip, DestinationImage
-from utils.ai_client import generate_content_with_fallback
 
 # Use the same API key as ai_service.py (configured in client already, but safe to keep or remove if unused here)
 # API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
@@ -22,21 +20,10 @@ async def get_famous_spot_image(destination: str, db: Session) -> str:
         print(f"🎯 Cache HIT for {destination}: {cached.image_url}")
         return cached.image_url
 
-    # 2. Ask Gemini for a famous spot
-    prompt = f"""
-    What is the single most iconic or famous tourist spot in "{destination}"? 
-    Return ONLY the name of that spot, nothing else.
-    """
-    
-    try:
-        # Use fallback client
-        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
-        spot_name = response.text.strip()
-        
-        if not spot_name or len(spot_name) > 100 or "not found" in spot_name.lower():
-            spot_name = destination
-            
-        print(f"🌟 Gemini identified famous spot for {destination}: {spot_name}")
+    # 2. Skip AI identifying famous spot - just use the destination directly
+    # OR use a very simple lookup for common major cities
+    spot_name = destination
+    print(f"🌟 Identifying famous spot for {destination}: {spot_name}")
         
         # 3. Construct URL
         # We use a high-quality featured search on Unsplash with better keywords
@@ -92,17 +79,21 @@ async def update_trip_image_task(trip_id: int, destination: str, db: Session):
     # 1. Image
     image_url = await get_famous_spot_image(destination, db)
     
-    # 2. Coordinates (New)
+    # 2. Coordinates (Non-AI Geocoding)
     lat, lng = None, None
     try:
-        coord_prompt = f"Return ONLY the latitude and longitude of '{destination}' as 'lat,lng'. No other text."
-        # Use fallback client
-        resp = await asyncio.to_thread(generate_content_with_fallback, coord_prompt)
-        bits = resp.text.strip().split(',')
-        if len(bits) == 2:
-            lat = float(bits[0].strip())
-            lng = float(bits[1].strip())
-            print(f"📍 Geocoded {destination} to {lat}, {lng}")
+        # Use Nominatim (OpenStreetMap) instead of AI for geocoding
+        # This is strictly non-AI and reliable
+        url = f"https://nominatim.openstreetmap.org/search?q={destination}&format=json&limit=1"
+        headers = {"User-Agent": "FairShare/1.0"}
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data:
+                    lat = float(data[0]['lat'])
+                    lng = float(data[0]['lon'])
+                    print(f"📍 Geocoded {destination} to {lat}, {lng}")
     except Exception as e:
         print(f"⚠️ Failed to geocode {destination}: {e}")
 
@@ -115,22 +106,17 @@ async def update_trip_image_task(trip_id: int, destination: str, db: Session):
         db.commit()
         print(f"✅ Updated trip {trip_id} with image and coordinates.")
 
-async def get_city_tourist_spots_images(city_name: str) -> list[str]:
+async def get_city_tourist_spots_images(city_name: str) -> List[str]:
     """
-    Finds top 5 tourist spots for a city and returns their image URLs.
-    """
-    prompt = f"""
-    List the top 5 most famous tourist spots in "{city_name}".
-    Return ONLY the names separated by commas, nothing else.
+    Finds tourist spots for a city and returns their image URLs.
     """
     try:
-        # Use fallback client
-        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
-        spots = [s.strip() for s in response.text.split(',')]
+        # Simplified: Use city name directly with common landmark descriptors
+        spots = [f"{city_name} landmark", f"{city_name} landscape", f"{city_name} city view"]
         
         image_urls = []
-        for spot in spots[:5]:
-            search_keywords = f"{spot.replace(' ', ',')},{city_name.replace(' ', ',')},landmark,travel"
+        for spot in spots:
+            search_keywords = f"{spot.replace(' ', ',')},travel"
             image_urls.append(f"https://source.unsplash.com/1200x800/?{search_keywords}")
         
         return image_urls

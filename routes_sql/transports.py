@@ -11,7 +11,6 @@ import os
 import tempfile
 import json
 from pypdf import PdfReader
-from utils.ai_client import generate_content_with_fallback
 
 router = APIRouter(prefix="/transports", tags=["transports"])
 
@@ -141,16 +140,17 @@ async def extract_pdf_metadata(file: UploadFile = File(...)):
         
         response_data = {
             "type": data.get("type", "flight"),
-            "carrier": None, # Non-AI service might not get carrier yet
-            "flight_number": None,
+            "carrier": data.get("carrier"),
+            "flight_number": data.get("flight_number"),
             "departure_location": data.get("from_location"),
             "arrival_location": data.get("to_location"),
-            "departure_time": data.get("date"), # Service currently returns date as string
-            "arrival_time": None,
+            "departure_time": data.get("departure_time") or data.get("date"), 
+            "arrival_time": data.get("arrival_time"),
             "booking_reference": data.get("booking_reference"),
-            "seat_number": None,
+            "seat_number": data.get("seat_number"),
             "cost": data.get("total_amount", 0),
-            "notes": f"Extracted via deterministic rules. {result.get('status')} extraction.",
+            "passengers": data.get("passengers", []),
+            "notes": f"Extracted via deterministic rules. {len(data.get('passengers', []))} passengers found.",
             "ticket_url": ticket_url
         }
         

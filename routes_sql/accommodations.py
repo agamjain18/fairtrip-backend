@@ -149,13 +149,6 @@ async def extract_metadata(request: UrlRequest):
     from bs4 import BeautifulSoup
     import re
     import json
-    import google.generativeai as genai
-
-    # Use the same API key as transports.py and ai_service.py
-    # API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
-    # genai.configure(api_key=API_KEY)
-    
-    from utils.ai_client import generate_content_with_fallback
 
     print(f"Extracting metadata for URL: {request.url}")
 
@@ -170,35 +163,40 @@ async def extract_metadata(request: UrlRequest):
         response = session.get(request.url, headers=headers, timeout=12, allow_redirects=True)
         response.raise_for_status()
         
-        # Get raw text and some HTML for context
-        # Google Maps pages are large, we'll take the head and some of the body
-        html_content = response.text[:50000] # Increased context
+        soup = BeautifulSoup(response.content, 'html.parser')
         
-        prompt = f"""
-        Extract the following information for a place (Hotel/Stay/Business) from this Google Maps / Website HTML source.
-        URL: {request.url}
-        HTML Snippet: {html_content[:20000]}
+        # 1. Try to get name from Title
+        title = soup.title.string if soup.title else ""
+        name = ""
+        if title:
+            # Google Maps titles usually look like "Hotel Name - Google Maps" or "Hotel Name · Address"
+            if " - Google Maps" in title:
+                name = title.split(" - Google Maps")[0].strip()
+            elif " · " in title:
+                name = title.split(" · ")[0].strip()
+            else:
+                name = title.strip()
 
-        Provide the following fields in JSON format:
-        - name: (The name of the hotel or place)
-        - address: (The full address)
-        - contact_number: (The phone number in international format if possible)
-        - notes: (A very brief summary or "Scraped via AI")
-
-        Respond ONLY with the JSON object. 
-        If a field is not found, use an empty string.
-        """
-
-        # Use fallback client
-        response = generate_content_with_fallback(prompt)
-        text = response.text.replace('```json', '').replace('```', '').strip()
-        data = json.loads(text)
+        # 2. Try to get address from Meta tags
+        address = ""
+        meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+        if meta_desc:
+            desc_content = meta_desc.get("content", "")
+            # Often address is in the description
+            # If it's a map link, description often starts with address or type
+            address = desc_content.strip()
+        
+        # 3. Contact number search (simple regex)
+        contact_number = ""
+        phone_match = re.search(r'(\+?\d{1,4}[\s\-]?)?(\(?\d{3}\)?[\s\-]?)?\d{3}[\s\-]?\d{4}', response.text)
+        if phone_match:
+            contact_number = phone_match.group(0).strip()
 
         return {
-            "name": data.get("name") or "",
-            "address": data.get("address") or "",
-            "contact_number": data.get("contact_number") or "",
-            "notes": f"Magic Fill: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+            "name": name,
+            "address": address[:200] if address else "",
+            "contact_number": contact_number,
+            "notes": f"Scraped via deterministic rules: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
         }
 
     except Exception as e:

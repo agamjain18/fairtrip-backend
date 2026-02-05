@@ -66,7 +66,13 @@ class PDFAnalysisService:
             "total_amount": None,
             "from_location": None,
             "to_location": None,
-            "type": "unknown"
+            "carrier": None,
+            "flight_number": None,
+            "seat_number": None,
+            "departure_time": None,
+            "arrival_time": None,
+            "type": "unknown",
+            "passengers": []
         }
 
         # Regex Patterns
@@ -91,13 +97,40 @@ class PDFAnalysisService:
             ],
             "from_location": [
                 r"From[:\s]*([A-Za-z\s,]{3,30})",
-                r"Departure[:\s]*([A-Za-z\s,]{3,30})",
+                r"Departure[:\s]*(?:Station|Airport)?\s*([A-Za-z\s,]{3,30})",
                 r"Origin[:\s]*([A-Za-z\s,]{3,30})"
             ],
             "to_location": [
                 r"To[:\s]*([A-Za-z\s,]{3,30})",
-                r"Arrival[:\s]*([A-Za-z\s,]{3,30})",
+                r"Arrival[:\s]*(?:Station|Airport)?\s*([A-Za-z\s,]{3,30})",
                 r"Destination[:\s]*([A-Za-z\s,]{3,30})"
+            ],
+            "carrier": [
+                r"Airline(?:\s*Name)?[:\s]*([A-Za-z\s]+)",
+                r"Carrier[:\s]*([A-Za-z\s]+)",
+                r"Operator[:\s]*([A-Za-z\s]+)",
+                r"Bus\s*Company[:\s]*([A-Za-z\s]+)",
+                r"Ship[:\s]*([A-Za-z\s]+)"
+            ],
+            "flight_number": [
+                r"(?:Flight|Train|Bus|Vehicle)(?:\s*No|Number)?[:\s]*([A-Z0-9\s-]+)",
+                r"(\d{5})\s*/\s*[A-Z\s]+", # Indian Train number pattern
+                r"([A-Z]{2,3})\s*(\d{3,4})", # Flight pattern (e.g., AI 101)
+            ],
+            "seat_number": [
+                r"Seat(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)",
+                r"Berth(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)",
+                r"Room(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)"
+            ],
+            "departure_time": [
+                r"Departure[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Dep\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
+                r"Starts[:\s]*(\d{1,2}:\d{2})"
+            ],
+            "arrival_time": [
+                r"Arrival[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Arr\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
+                r"Ends[:\s]*(\d{1,2}:\d{2})"
             ]
         }
 
@@ -117,6 +150,60 @@ class PDFAnalysisService:
             data["type"] = "hotel"
         elif re.search(r"bus|coach", text, re.IGNORECASE):
             data["type"] = "bus"
+
+        # --- Passenger Detail Extraction ---
+        lines = text.split('\n')
+        passenger_section = False
+        
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            
+            # Start of passenger section detection
+            if re.search(r"Passenger\s*Details|Traveller\s*Details|SNo|Passenger\s*Name", line, re.IGNORECASE):
+                passenger_section = True
+                continue
+            
+            # 1. Regex for "1 John Doe 30 Male S3 24" (IRCTC style)
+            # Match: (Index) (Name) (Age) (Gender) (Seat/Berth)
+            # Index is often 1-6 chars, Name is 3-30, Age is 1-3, Gender is M/F/Male/Female/etc
+            p_match = re.search(r"^\d+\s+([A-Za-z\s]+?)\s+(\d{1,2})\s+(?:M|F|Male|Female|Boy|Girl|Child)\s+([A-Z0-9/\s]+)", line)
+            if p_match:
+                data["passengers"].append({
+                    "name": p_match.group(1).strip(),
+                    "age": int(p_match.group(2)),
+                    "seat": p_match.group(3).strip()
+                })
+                if not data["seat_number"]:
+                    data["seat_number"] = p_match.group(3).strip()
+                continue
+            
+            # 2. Regex for "Name: John, Age: 30..."
+            p_alt = re.search(r"Name[:\s]*([A-Za-z\s]+).*Age[:\s]*(\d+).*Seat[:\s]*([A-Z0-9-]+)", line, re.IGNORECASE)
+            if p_alt:
+                data["passengers"].append({
+                    "name": p_alt.group(1).strip(),
+                    "age": int(p_alt.group(2)),
+                    "seat": p_alt.group(3).strip()
+                })
+                continue
+            
+            # 3. Simple CSV/Table fallback for passengers
+            # If we are in passenger section, try more relaxed matching
+            if passenger_section:
+                # Look for name and seat on the same line
+                # "John Doe   12A"
+                relaxed_match = re.search(r"^([A-Za-z\s]+?)\s{2,}([A-Z0-9]{2,5})\b", line)
+                if relaxed_match:
+                    name = relaxed_match.group(1).strip()
+                    seat = relaxed_match.group(2).strip()
+                    # Basic check to avoid false positives (e.g., location names)
+                    if len(name) > 3 and not any(kw in name.lower() for kw in ['station', 'airport', 'terminal']):
+                        data["passengers"].append({
+                            "name": name,
+                            "seat": seat,
+                            "age": None
+                        })
 
         return data
 

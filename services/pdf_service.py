@@ -77,80 +77,67 @@ class PDFAnalysisService:
             "passengers": []
         }
 
-        # --- Deep Pre-parsing for IRCTC / redRail Vertical Layouts ---
-        # 1. PNR: High-precision 10-digit capture
-        # Look for "PNR" and capture the first 10-digit number following it (even with lines/spaces)
-        pnr_raw = re.search(r"PNR\s*[\*]?\s*\n?\s*(\d{10})", text, re.IGNORECASE)
-        if pnr_raw:
-            data["booking_reference"] = pnr_raw.group(1)
+        # --- Robust Extraction for IRCTC / redRail Vertical & Row Layouts ---
+        # 1. PNR: 10-digit number following PNR label (anywhere nearby)
+        pnr_match = re.search(r"PNR\s*[\*]*\s*[:\s]*\n?\s*(\d{10})", text, re.IGNORECASE)
+        if pnr_match:
+            data["booking_reference"] = pnr_match.group(1)
         
-        # 2. Sequential Station Extraction based on Labels
-        # Look for "Booked From" station
-        from_raw = re.search(r"Booked\s*From\s*\n?\s*([A-Z\s,]+?\([A-Z]{2,4}\))", text, re.IGNORECASE)
-        if from_raw:
-            data["from_location"] = from_raw.group(1).strip()
-        
-        # Look for "To" station (specifically after "Departure")
-        to_raw = re.search(r"To\s*\n\s*([A-Z\s,]+?\([A-Z]{2,4}\))", text, re.IGNORECASE)
-        if to_raw:
-            data["to_location"] = to_raw.group(1).strip()
+        # 2. Train Number and Name
+        # Pattern: Train No./Name \n 19316/Virbhumi Exp
+        train_match = re.search(r"Train\s*No\.?/Name[s]?\s*\n\s*(\d{5})\s*/\s*([^\n\r]+)", text, re.IGNORECASE)
+        if train_match:
+            data["flight_number"] = train_match.group(1)
+            data["carrier"] = train_match.group(2).strip()
 
-        # 3. Train No/Name refinement
-        train_raw = re.search(r"Train\s*No\.?/Name\s*\n?\s*(\d{5})\s*/\s*([A-Za-z0-9\s\.\-]+)", text, re.IGNORECASE)
-        if train_raw:
-            data["flight_number"] = train_raw.group(1)
-            data["carrier"] = train_raw.group(2).split('\n')[0].strip()
+        # 3. Stations: Handle Row Layout (Booked From   Boarding At   To)
+        # Strategy: Find the stations line which usually follows the headers
+        station_row = re.search(r"Booked\s*From\s+Boarding\s*At\s+To\s*\n\s*([A-Z\s\(\),]+?)\s{2,}([A-Z\s\(\),]+?)\s{2,}([A-Z\s\(\),]+)", text, re.IGNORECASE)
+        if station_row:
+            data["from_location"] = station_row.group(1).strip()
+            data["to_location"] = station_row.group(3).strip()
+        else:
+            # Fallback to label-based if row match fails
+            from_lb = re.search(r"Booked\s*From\s*\n\s*([A-Z\s\(\),]+?)(?=\n|\s{2,}|$)", text, re.IGNORECASE)
+            if from_lb: data["from_location"] = from_lb.group(1).strip()
+            
+            to_lb = re.search(r"To\s*\n\s*([A-Z\s\(\),]+?)(?=\n|\s{2,}|$)", text, re.IGNORECASE)
+            if to_lb: data["to_location"] = to_lb.group(1).strip()
 
-        # 4. Station list fallback (only if labels failed)
+        # 4. Fallback for Stations (if still missing)
         if not data["from_location"] or not data["to_location"]:
             all_stations = re.findall(r"([A-Z\s,]{3,30})\s+\(([A-Z]{2,4})\)", text)
             if len(all_stations) >= 2:
-                # Filter out duplicated Boarding Station if it's the same as Booked From
-                unique_stations = []
+                # First is likely 'From', Last is likely 'To'
+                unique = []
                 for s in all_stations:
-                    formatted = f"{s[0].strip()} ({s[1]})"
-                    if not unique_stations or formatted != unique_stations[-1]:
-                        unique_stations.append(formatted)
-                
-                if not data["from_location"]: data["from_location"] = unique_stations[0]
-                if not data["to_location"]: data["to_location"] = unique_stations[-1]
+                    item = f"{s[0].strip()} ({s[1]})"
+                    if not unique or item != unique[-1]: unique.append(item)
+                if not data["from_location"]: data["from_location"] = unique[0]
+                if not data["to_location"]: data["to_location"] = unique[-1]
 
-        # Regex Patterns (Secondary Fallback)
+        # Regex Patterns (Generic Fallbacks)
         patterns = {
-            "booking_reference": [
-                r"PNR[\s*]*(\d{10})",
-                r"Booking\s*Ref[:\s]*(\d+)"
-            ],
+            "booking_reference": [r"PNR[:\s]*(\d{10})"],
             "date": [
                 r"Start\s*Date\W*([\d]+-[A-Za-z]+-\d{4})",
+                r"Travel\s*Date[:\s]*([\d/-]+)",
                 r"(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})"
             ],
             "total_amount": [
                 r"Total\s*Fare[:\s]*[^\d]*([\d,.]+)",
                 r"Total\s*Amount[:\s]*([\d,.]+)"
             ],
-            "from_location": [
-                r"Boarding\s*At\s*[\n\s]+([A-Z\s\(\)]+)"
-            ],
-            "to_location": [
-                r"Reservation\s*Upto[:\s]*([A-Z\s\(\)]+)"
-            ],
-            "carrier": [
-                r"Carrier[:\s]*([A-Za-z\s]+)"
-            ],
-            "flight_number": [
-                r"Flight\s*No\.?\s*([A-Z0-9]+)"
-            ],
+            "from_location": [r"Boarding\s*At\s*[\n\s]+([A-Z\s\(\)]+)"],
+            "to_location": [r"Reservation\s*Upto[:\s]*([A-Z\s\(\)]+)"],
+            "carrier": [r"Carrier[:\s]*([A-Za-z\s]+)"],
+            "flight_number": [r"Flight\s*No\.?\s*([A-Z0-9]+)"],
             "seat_number": [
                 r"Seat\s*No\.?\s*[:\s]*([A-Z0-9/]+)(?!\s*log)",
                 r"Berth\s*No\.?\s*[:\s]*([A-Z0-9/]+)"
             ],
-            "departure_time": [
-                r"Departure\W*(\d{1,2}:\d{2})",
-            ],
-            "arrival_time": [
-                r"Arrival\W*(\d{1,2}:\d{2})",
-            ]
+            "departure_time": [r"Departure\W*(\d{1,2}:\d{2})"],
+            "arrival_time": [r"Arrival\W*(\d{1,2}:\d{2})"]
         }
 
         for key, pattern_list in patterns.items():
@@ -158,7 +145,6 @@ class PDFAnalysisService:
             for pattern in pattern_list:
                 match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
                 if match:
-                    # Specific cleanup for seat numbers
                     val = match.group(1).strip()
                     if key == "seat_number" and ("log on" in val.lower() or "www" in val.lower()):
                         continue

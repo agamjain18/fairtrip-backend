@@ -75,51 +75,65 @@ class PDFAnalysisService:
             "passengers": []
         }
 
+        # --- Pre-parsing for redRail/IRCTC specific layouts ---
+        # 1. Row-based extraction for stations
+        # Often looks like: Header Row \n Value Row \n Code Row
+        stations = re.findall(r"([A-Z\s,]{3,30})\s+\(([A-Z]{2,4})\)", text)
+        if len(stations) >= 2:
+            data["from_location"] = f"{stations[0][0].strip()} ({stations[0][1]})"
+            data["to_location"] = f"{stations[-1][0].strip()} ({stations[-1][1]})"
+
+        # 2. Sequential Header Match: "Departure* 20:20 15 Feb 2026"
+        dep_match = re.search(r"Departure\W*(\d{1,2}:\d{2})\s*([\d\w\s-]+)", text, re.IGNORECASE)
+        if dep_match:
+            data["departure_time"] = dep_match.group(1)
+            # Try to extract date from the rest of the line if main date is missing
+            if not data["date"]: 
+                date_part = dep_match.group(2).strip()
+                if re.search(r"\d{1,2}[\s-][A-Za-z]{3}[\s-]\d{4}", date_part):
+                    data["date"] = re.search(r"\d{1,2}[\s-][A-Za-z]{3}[\s-]\d{4}", date_part).group(0)
+
+        # 3. Train No/Name combined: "19316/Virbhumi Exp"
+        train_combined = re.search(r"(\d{5})\s*/\s*([A-Za-z\s]+)", text)
+        if train_combined:
+            data["flight_number"] = train_combined.group(1)
+            data["carrier"] = train_combined.group(2).strip()
+
         # Regex Patterns
         patterns = {
             "booking_reference": [
-                r"PNR[\s*]*(\d{10})", # IRCTC PNR is usually 10 digits
+                r"PNR[\s*]*(\d{10})",
                 r"Booking\s*(?:Ref|Reference|ID|Number)[:\s]*([A-Z0-9]{6,15})",
                 r"Confirmation[:\s]*([A-Z0-9]{6,15})",
-                r"Reservation[:\s]*([A-Z0-9]{6,15})",
-                r"Ticket\s*Number[:\s]*([A-Z0-9-]+)"
+                r"Reservation[:\s]*([A-Z0-9]{6,15})"
             ],
             "date": [
-                r"Start\s*Date\W*([\d]+-[A-Za-z]+-\d{4})", # Match "15-Feb-2026"
+                r"Start\s*Date\W*([\d]+-[A-Za-z]+-\d{4})",
                 r"Date\s*of\s*Journey[:\s]+([\d/-]+|[A-Za-z\s\d,]+)",
                 r"Travel\s*Date[:\s]+([\d/-]+)",
                 r"Date[:\s]+([\d/-]+)",
                 r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
-                r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})"
+                r"(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})"
             ],
             "total_amount": [
                 r"Total\s*Fare[:\s]*[^\d]*([\d,.]+)",
                 r"Total\s*Amount[:\s]*([\d,.]+)",
-                r"Total[:\s]*[\$€£]?\s*([\d,.]+)",
-                r"Amount\s*Paid[:\s]*([\d,.]+)"
+                r"Total[:\s]*[\$€£]?\s*([\d,.]+)"
             ],
             "from_location": [
-                r"Booked\s*From\s*([A-Za-z\s\(\)]+?)(?=\n|Boarding|To|$)",
-                r"Boarding\s*At\s*([A-Za-z\s\(\)]+?)(?=\n|$)",
-                r"Origin[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
-                r"From[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
+                r"Boarding\s*At\s*[\n\s]+([A-Z\s\(\)]+)",
+                r"Booked\s*From\s*[\n\s]+([A-Z\s\(\)]+)"
             ],
             "to_location": [
-                r"To\s*\n\s*([A-Za-z\s\(\)]+?)(?=\n|Arrival|$)",
-                r"Destination[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
-                r"Arrival(?:\s*To)?[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
-                r"Reservation\s*Upto[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
+                r"To\s*[\n\s]+(?:[A-Z\s\(\)]+?[\s]{2,}){1,2}([A-Z\s\(\)]+)",
+                r"To\s*[\n\s]+([A-Z\s\(\)]{3,50})"
             ],
             "carrier": [
-                r"Train\s*Name[:\s]*([A-Za-z\s]+)",
-                r"Airline(?:\s*Name)?[:\s]*([A-Za-z\s]+)",
-                r"Carrier[:\s]*([A-Za-z\s]+)",
-                r"Operator[:\s]*([A-Za-z\s]+)"
+                r"Train\s*Name[:\s]*([A-Z][A-Za-z\s]+)",
+                r"Airline(?:\s*Name)?[:\s]*([A-Za-z\s]+)"
             ],
             "flight_number": [
                 r"Train\s*No\.?/Name\s+(\d{5})",
-                r"(\d{5})/[A-Za-z\s]+", # Match "19316/Virbhumi Exp"
-                r"(?:Flight|Train|Bus|Vehicle)(?:\s*No|Number)?[:\s]*([A-Z0-9\s-]+)",
                 r"\b([A-Z]{2,3})\s*(\d{3,4})\b"
             ],
             "seat_number": [
@@ -128,25 +142,34 @@ class PDFAnalysisService:
                 r"Coach\s*[:\s]*[A-Z0-9]+\s*(?:Seat|Berth)\s*[/\s]*([A-Z0-9]+)"
             ],
             "departure_time": [
-                r"Departure\W*(\d{1,2}:\d{2})", # Match "Departure* 20:20"
-                r"Departure\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Departure\W*(\d{1,2}:\d{2})",
                 r"Dep\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Starts[:\s]*(\d{1,2}:\d{2})"
             ],
             "arrival_time": [
-                r"Arrival\W*(\d{1,2}:\d{2})", # Match "Arrival* 07:00"
-                r"Arrival\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Arrival\W*(\d{1,2}:\d{2})",
                 r"Arr\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Ends[:\s]*(\d{1,2}:\d{2})"
             ]
         }
 
         for key, pattern_list in patterns.items():
+            if data.get(key): continue
             for pattern in pattern_list:
                 match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
                 if match:
                     data[key] = match.group(1).strip()
                     break
+
+        # Date Normalization: Convert "15-Feb-2026" or "15 Feb 2026" to "2026-02-15"
+        if data["date"]:
+            raw_date = data["date"].strip()
+            # Try several common formats
+            for fmt in ["%d-%b-%Y", "%d %b %Y", "%d/%m/%Y", "%Y-%m-%d"]:
+                try:
+                    dt = datetime.strptime(raw_date, fmt)
+                    data["date"] = dt.strftime("%Y-%m-%d")
+                    break
+                except:
+                    continue
 
         # Detect Type
         # If we see IRCTC or Train/Rail, it's a train

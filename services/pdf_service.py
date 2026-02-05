@@ -78,59 +78,70 @@ class PDFAnalysisService:
         # Regex Patterns
         patterns = {
             "booking_reference": [
-                r"PNR[:\s]*([A-Z0-9]{6,10})",
+                r"PNR\s*(?:No|Number)?[:\s]*([A-Z0-9]{6,12})",
                 r"Booking\s*(?:Ref|Reference|ID|Number)[:\s]*([A-Z0-9]{6,15})",
                 r"Confirmation[:\s]*([A-Z0-9]{6,15})",
-                r"Reservation[:\s]*([A-Z0-9]{6,15})"
+                r"Reservation[:\s]*([A-Z0-9]{6,15})",
+                r"Ticket\s*Number[:\s]*([A-Z0-9-]+)"
             ],
             "date": [
+                r"Date\s*of\s*Journey[:\s]+([\d/-]+|[A-Za-z\s\d,]+)",
+                r"Travel\s*Date[:\s]+([\d/-]+)",
                 r"Date[:\s]+([\d/-]+)",
                 r"Check-in[:\s]+([\d/-]+)",
-                r"Travel\s*Date[:\s]+([\d/-]+)",
                 r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
                 r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})"
             ],
             "total_amount": [
+                r"Total\s*Fare[:\s]*([\d,.]+)",
                 r"Total\s*Amount[:\s]*([\d,.]+)",
                 r"Total[:\s]*[\$€£]?\s*([\d,.]+)",
                 r"Amount\s*Paid[:\s]*([\d,.]+)"
             ],
             "from_location": [
-                r"From[:\s]*([A-Za-z\s,]{3,30})",
-                r"Departure[:\s]*(?:Station|Airport)?\s*([A-Za-z\s,]{3,30})",
-                r"Origin[:\s]*([A-Za-z\s,]{3,30})"
+                r"From[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Origin[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Departure(?:\s*From)?[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Boarding\s*At[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
             ],
             "to_location": [
-                r"To[:\s]*([A-Za-z\s,]{3,30})",
-                r"Arrival[:\s]*(?:Station|Airport)?\s*([A-Za-z\s,]{3,30})",
-                r"Destination[:\s]*([A-Za-z\s,]{3,30})"
+                r"To[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Destination[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Arrival(?:\s*To)?[:\s]*([A-Z0-9\s,/\(\)-]{3,50})",
+                r"Reservation\s*Upto[:\s]*([A-Z0-9\s,/\(\)-]{3,50})"
             ],
             "carrier": [
                 r"Airline(?:\s*Name)?[:\s]*([A-Za-z\s]+)",
                 r"Carrier[:\s]*([A-Za-z\s]+)",
                 r"Operator[:\s]*([A-Za-z\s]+)",
                 r"Bus\s*Company[:\s]*([A-Za-z\s]+)",
-                r"Ship[:\s]*([A-Za-z\s]+)"
+                r"Ship[:\s]*([A-Za-z\s]+)",
+                r"Train\s*Name[:\s]*([A-Za-z\s]+)"
             ],
             "flight_number": [
                 r"(?:Flight|Train|Bus|Vehicle)(?:\s*No|Number)?[:\s]*([A-Z0-9\s-]+)",
-                r"(\d{5})\s*/\s*[A-Z\s]+", # Indian Train number pattern
-                r"([A-Z]{2,3})\s*(\d{3,4})", # Flight pattern (e.g., AI 101)
+                r"Train\s*No\.?\s*(?:&|and)\s*Name[:\s]*(\d{5})",
+                r"(\d{5})\s*/", # Indian Train number pattern before name
+                r"\b([A-Z]{2,3})\s*(\d{3,4})\b", # Flight pattern (e.g., AI 101)
+                r"Vehicle\s*Reg[:\s]*([A-Z0-9\s-]+)"
             ],
             "seat_number": [
-                r"Seat(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)",
-                r"Berth(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)",
-                r"Room(?:\s*No|Number)?[:\s]*([A-Z0-9\s]+)"
+                r"Seat\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
+                r"Berth\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
+                r"Room\s*(?:No|Number)?[:\s]*([A-Z0-9\s/]+)",
+                r"Coach\s*[:\s]*[A-Z0-9]+\s*(?:Seat|Berth)\s*[/\s]*([A-Z0-9]+)"
             ],
             "departure_time": [
-                r"Departure[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Departure\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
                 r"Dep\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Starts[:\s]*(\d{1,2}:\d{2})"
+                r"Starts[:\s]*(\d{1,2}:\d{2})",
+                r"(\d{1,2}:\d{2})\s*(?:Hrs|AM|PM)?\s*Departure"
             ],
             "arrival_time": [
-                r"Arrival[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
+                r"Arrival\s*Time[:\s]*(\d{1,2}:\d{2}(?:\s*[APM]{2})?)",
                 r"Arr\.?\s*Time[:\s]*(\d{1,2}:\d{2})",
-                r"Ends[:\s]*(\d{1,2}:\d{2})"
+                r"Ends[:\s]*(\d{1,2}:\d{2})",
+                r"(\d{1,2}:\d{2})\s*(?:Hrs|AM|PM)?\s*Arrival"
             ]
         }
 

@@ -7,7 +7,14 @@ import os
 
 DATABASE_URL = "sqlite:///./fairshare_v2.db"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=60,
+    pool_pre_ping=True
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

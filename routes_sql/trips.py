@@ -44,24 +44,8 @@ async def invalidate_trip_cache(trip_id: int = None, user_id: int = None):
         print(f"Error invalidating cache: {e}")
 
 @router.get("/", response_model=List[TripSchema])
-async def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get all trips or trips for a specific user"""
-    
-    # Create cache key
-    if user_id:
-        cache_key = f"trips:user:{user_id}:skip{skip}:limit{limit}"
-    else:
-        cache_key = f"trips:all:skip{skip}:limit{limit}"
-    
-    # Try cache first
-    if REDIS_AVAILABLE:
-        try:
-            cached = await redis_client.get(cache_key)
-            if cached:
-                print(f"✅ Cache HIT: {cache_key}")
-                return cached
-        except Exception as e:
-            print(f"Redis GET error: {e}")
     
     # Get from database
     if user_id:
@@ -78,39 +62,17 @@ async def get_trips(user_id: Optional[int] = None, skip: int = 0, limit: int = 1
             if trip.destination:
                 imgs = db.query(DestinationImage).filter(DestinationImage.destination.like(f"{trip.destination}%")).all()
                 trip.image_urls = [img.image_url for img in imgs] if imgs else []
-
             
         return all_trips
     else:
         trips = db.query(Trip).offset(skip).limit(limit).all()
     
-    # Cache the result for 5 minutes (300 seconds)
-    if REDIS_AVAILABLE:
-        try:
-            # Convert to dict for caching
-            result = all_trips if user_id else trips
-            await redis_client.set(cache_key, result, expire=300)
-            print(f"💾 Cached: {cache_key}")
-        except Exception as e:
-            print(f"Redis SET error: {e}")
-    
-    return all_trips if user_id else trips
+    return trips
 
 
 @router.get("/{trip_id}/", response_model=TripSchema)
-async def get_trip(trip_id: int, db: Session = Depends(get_db)):
+def get_trip(trip_id: int, db: Session = Depends(get_db)):
     """Get a specific trip"""
-    cache_key = f"trip:details:{trip_id}"
-    
-    # Try cache first
-    if REDIS_AVAILABLE:
-        try:
-            cached = await redis_client.get(cache_key)
-            if cached:
-                print(f"✅ Cache HIT: {cache_key}")
-                return cached
-        except Exception as e:
-            print(f"Redis GET error: {e}")
     
     # Get from database
     trip = db.query(Trip).filter(Trip.id == trip_id).first()
@@ -120,14 +82,6 @@ async def get_trip(trip_id: int, db: Session = Depends(get_db)):
     if trip.destination:
         imgs = db.query(DestinationImage).filter(DestinationImage.destination.like(f"{trip.destination}%")).all()
         trip.image_urls = [img.image_url for img in imgs] if imgs else []
-    
-    # Cache for 10 minutes (600 seconds)
-    if REDIS_AVAILABLE:
-        try:
-            await redis_client.set(cache_key, trip, expire=600)
-            print(f"💾 Cached: {cache_key}")
-        except Exception as e:
-            print(f"Redis SET error: {e}")
     
     return trip
 

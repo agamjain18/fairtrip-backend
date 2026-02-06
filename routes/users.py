@@ -12,6 +12,18 @@ def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
 
+import random
+import string
+
+def generate_friend_code(k=8):
+    # Characters: Uppercase + Digits + Special Chars (!@#$%^&*)
+    # Requirement: "8-char code with special chars" to match UI? 
+    # Frontend logic was: "ABC...123...!@#"
+    # Let's keep it alphanumeric for simplicity and robustness, or follow user's "random" desire.
+    # Frontend example: FT-8829-QX.
+    # Let's simple use 8 char alphanumeric for now, easier to type.
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
 
 @router.get("/", response_model=List[UserSchema])
 async def get_users(skip: int = 0, limit: int = 100):
@@ -61,6 +73,7 @@ async def create_user(user: UserCreate):
         avatar_url=user.avatar_url,
         phone=user.phone,
         bio=user.bio,
+        friend_code=generate_friend_code(), # Generate initial code
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
     )
@@ -144,3 +157,53 @@ async def delete_payment_method(user_id: str, method_id: str):
     
     await method.delete()
     return None
+    await method.delete()
+    return None
+
+@router.post("/{user_id}/friends/add-by-code")
+async def add_friend_by_code(user_id: str, friend_code: str):
+    """Add a friend using their unique friend code"""
+    user = await User.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    target_user = await User.find_one(User.friend_code == friend_code)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Invalid Friend Code")
+    
+    if target_user.id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot add yourself")
+        
+    # Check existing friendship
+    existing = await Friendship.find_one(
+        Friendship.user_id.id == user.id, 
+        Friendship.friend_id.id == target_user.id
+    )
+    if existing:
+        return {"message": "Already friends"}
+
+    # Create bi-directional friendship
+    f1 = Friendship(user_id=user, friend_id=target_user, status="accepted")
+    f2 = Friendship(user_id=target_user, friend_id=user, status="accepted")
+    
+    await f1.insert()
+    await f2.insert()
+    
+    # REGENERATE CODE for the TARGET user as per requirement
+    # "if one has add wiht the code then hange the code of that persone autiomaticlay"
+    target_user.friend_code = generate_friend_code()
+    await target_user.save()
+    
+    return {"message": "Friend added successfully. Friend code rotated."}
+
+@router.post("/{user_id}/friend-code/regenerate")
+async def regenerate_friend_code(user_id: str):
+    """Regenerate user's friend code manually"""
+    user = await User.get(user_id)
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+         
+    user.friend_code = generate_friend_code()
+    await user.save()
+    
+    return {"friend_code": user.friend_code}

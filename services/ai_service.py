@@ -4,12 +4,7 @@ import asyncio
 from typing import Dict, List, Any
 from database import Trip
 from motor.motor_asyncio import AsyncIOMotorClient
-
-# Configure Gemini
-API_KEY = "AIzaSyBm_cgJs_C7sQ8MUdtE9ly5wGq3LRuBLNI"
-genai.configure(api_key=API_KEY)
-
-model = genai.GenerativeModel('gemini-flash-latest')
+from utils.ai_client import generate_content_with_fallback
 
 # Database connection for caching images
 DATABASE_URL = "mongodb://localhost:27017"
@@ -32,10 +27,6 @@ async def fetch_place_image(place_name: str) -> str:
         return cached["image_url"]
 
     # If not in cache, we need to find an image.
-    # Since we can't search Google Images directly without an API key for Custom Search,
-    # we will rely on Gemini to provide a known public URL if possible, or use a placeholder.
-    # For a robust solution without a paid search API, we'll try to get Gemini to give us a Wikimedia/Unsplash URL.
-    
     prompt = f"""
     Find a valid, public, direct image URL (jpg/png) for the tourist place: "{place_name}".
     Prefer Wikimedia Commons or Unsplash URLs.
@@ -44,12 +35,13 @@ async def fetch_place_image(place_name: str) -> str:
     """
     
     try:
-        response = await model.generate_content_async(prompt)
+        # Use fallback client (wrapped in thread for async compat)
+        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
         image_url = response.text.strip()
         
         if "PLACEHOLDER" in image_url or len(image_url) > 500 or not image_url.startswith("http"):
              # Fallback to a generic travel image service
-             image_url = f"https://source.unsplash.com/800x600/?{place_name.replace(' ', ',')}"
+             image_url = f"https://loremflickr.com/800/600/{place_name.replace(' ', ',')}"
         
         # Cache the result
         await collection.insert_one({
@@ -61,7 +53,7 @@ async def fetch_place_image(place_name: str) -> str:
         return image_url
     except Exception as e:
         print(f"Error fetching image for {place_name}: {e}")
-        return f"https://source.unsplash.com/800x600/?travel,{place_name}"
+        return f"https://loremflickr.com/800/600/travel,{place_name.replace(' ', ',')}"
 
 async def generate_trip_itinerary(trip_id: str, destination: str, start_date: str, end_date: str, budget: float):
     """
@@ -73,7 +65,7 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             return
 
         # Update status to processing (10%)
-        await trip.update({"$set": {"ai_status": "processing", "ai_progress": 10}})
+        await trip.update({"$set": {"ai_status": "processing", "ai_progress": 10, "ai_status_message": "Analyzing destination and preferences..."}})
         
         # Calculate duration
         start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
@@ -105,13 +97,14 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
         }}
         """
         
-        response = await model.generate_content_async(prompt)
+        # Use fallback client
+        response = await asyncio.to_thread(generate_content_with_fallback, prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
         
         # 40% Progress - Text generated
         current_progress = 40
-        await trip.update({"$set": {"ai_progress": current_progress}})
+        await trip.update({"$set": {"ai_progress": current_progress, "ai_status_message": "Drafting your daily itinerary..."}})
 
         # Process and enhance with images
         top_places = result.get("top_places", [])
@@ -128,7 +121,10 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             
             # Increment progress
             current_progress += progress_step
-            await trip.update({"$set": {"ai_progress": min(95, current_progress)}})
+            await trip.update({"$set": {
+                "ai_progress": min(95, current_progress),
+                "ai_status_message": f"Finding best images for {place['name']}..."
+            }})
             
         result["top_places"] = enhanced_places
         
@@ -137,7 +133,8 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
             "$set": {
                 "itinerary_data": result,
                 "ai_status": "completed",
-                "ai_progress": 100
+                "ai_progress": 100,
+                "ai_status_message": "Itinerary ready!"
             }
         })
         print(f"✅ AI Itinerary generated and saved for trip {trip_id}")
@@ -147,6 +144,6 @@ async def generate_trip_itinerary(trip_id: str, destination: str, start_date: st
         # Update status to failed
         trip = await Trip.get(trip_id)
         if trip:
-            await trip.update({"$set": {"ai_status": "failed"}})
+            await trip.update({"$set": {"ai_status": "failed", "ai_status_message": "Something went wrong."}})
 
 from datetime import datetime

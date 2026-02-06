@@ -1,0 +1,152 @@
+name: Deploy Backend to Server (Bare Metal)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # 1. Update system and install dependencies
+            sudo apt-get update
+            sudo apt-get install -y python3-pip python3-venv git gnupg curl nginx
+            
+            # Install MongoDB if not present (system-wide)
+            if ! command -v mongod &> /dev/null; then
+              curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg --yes
+              echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+              sudo apt-get update
+              sudo apt-get install -y mongodb-org
+              sudo systemctl enable --now mongod
+            fi
+            
+            # 2. Project Directory Setup
+            PROJECT_DIR="/home/${{ secrets.SERVER_USER }}/fairtrip-backend"
+            mkdir -p "$PROJECT_DIR"
+            
+            # We use rsync or git. If using git, ensure repo is initialized.
+            # Assuming the user wants to keep the git-based flow from the original script.
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              git clone https://github.com/agamjain18/fairtrip-backend.git "$PROJECT_DIR" || true
+            fi
+            
+            cd "$PROJECT_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # 3. Python Environment Setup
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            
+            # 4. Environment Configuration
+            echo "MONGODB_URI=mongodb://localhost:27017" > .env
+            echo "DATABASE_NAME=fairshare" >> .env
+            echo "ROOT_PATH=/fairtrip" >> .env
+            echo "PORT=8005" >> .env
+            
+            # 5. PM2 Configuration
+            # Install Node.js and PM2 if missing
+            if ! command -v pm2 &> /dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y nodejs npm
+                sudo npm install -g pm2
+            fi
+
+            # Stop and Disable conflicting Systemd service
+            sudo systemctl stop fairtrip-backend || true
+            sudo systemctl disable fairtrip-backend || true
+            
+            # Start/Restart with PM2
+            # We use the venv python interpreter
+            INTERPRETER="$PROJECT_DIR/venv/bin/python"
+            
+            cd "$PROJECT_DIR"
+            
+            # Export PORT so PM2 picks it up
+            export PORT=8005
+            
+            if pm2 list | grep -q "fairshare-backend"; then
+                echo "♻️ Restarting existing PM2 process..."
+                pm2 restart fairshare-backend --update-env
+            else
+                echo "🚀 Starting new PM2 process..."
+                pm2 start "$INTERPRETER" --name fairshare-backend -- main.py
+            fi
+            
+            pm2 save
+            
+            # 6. Nginx Configuration
+            echo "🔧 Configuring Nginx..."
+            if [ -f "nginx-fairtrip.conf" ]; then
+              # Ensure directories exist
+              sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+              
+              sudo cp nginx-fairtrip.conf /etc/nginx/sites-available/fairtrip
+              sudo ln -sf /etc/nginx/sites-available/fairtrip /etc/nginx/sites-enabled/
+              
+              # Remove default site to avoid conflict on port 80
+              sudo rm -f /etc/nginx/sites-enabled/default
+              
+              # Test Nginx config
+              if sudo nginx -t; then
+                sudo systemctl reload nginx
+                echo "✅ Nginx reloaded successfully"
+              else
+                echo "❌ Nginx configuration test failed"
+                exit 1
+              fi
+            fi
+
+            # 7. Comprehensive API Testing Workflow
+            echo "🔍 Running API Testing Workflow..."
+            sleep 10  # Wait for startup
+            
+            # Create a temporary test script or run the existing one
+            # We'll use a python script to verify multiple endpoints
+            source venv/bin/activate
+            python3 api_test_workflow.py
+            
+            if [ $? -eq 0 ]; then
+               echo "✅ Local API Testing Workflow passed!"
+            else
+               echo "❌ Local API Testing Workflow failed. Checking logs:"
+               pm2 logs fairshare-backend --lines 50 --nostream
+               exit 1
+            fi
+
+            # 8. Check Public URL
+            echo "🌍 Checking Public URL (api.agamjain.online/fairtrip)..."
+            # We use the same script but point it to the public domain
+            # sleep briefly to let Nginx reload settle completely
+            sleep 5
+            python3 api_test_workflow.py --url https://api.agamjain.online/fairtrip
+
+            if [ $? -eq 0 ]; then
+               echo "✅ Public API Testing Workflow passed!"
+            else
+               echo "⚠️ Public API access failed. This might be DNS or Firewall related."
+               # We don't exit 1 here because the service itself works locally; 
+               # we just want to warn the user or fail if strictly required.
+               # User requested to 'check' it. If they want strict failure, we should exit 1.
+               # I'll exit 1 to be safe as they want to verify the pipeline.
+               exit 1
+            fi
+
+            # Clean up old Docker container
+            sudo docker stop fairtrip_backend || true
+            sudo docker rm fairtrip_backend || true

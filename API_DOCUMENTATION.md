@@ -2,9 +2,9 @@
 
 ## 🚀 Server Information
 
-**Base URL**: `http://localhost:8000`  
-**API Docs**: `http://localhost:8000/docs` (Swagger UI)  
-**Alternative Docs**: `http://localhost:8000/redoc`
+**Base URL**: `http://localhost:8005`  
+**API Docs**: `http://localhost:8005/docs` (Swagger UI)  
+**Alternative Docs**: `http://localhost:8005/redoc`
 
 ## 🔐 Authentication
 
@@ -451,6 +451,20 @@ GET /checklist/trip/{trip_id}/summary
 GET /misc/photos/trip/{trip_id}
 ```
 
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "url": "/static/photo_1_20260128_123456.jpg",
+    "caption": "Amazing sunset!",
+    "uploaded_at": "2026-01-28T04:58:25",
+    "uploaded_by_id": 1,
+    "uploader_name": "John Doe"
+  }
+]
+```
+
 #### Upload Photo
 ```http
 POST /misc/photos
@@ -692,34 +706,34 @@ POST /misc/notifications/user/{user_id}/read-all
 ### 1. User Registration & Login Flow
 ```bash
 # Register
-curl -X POST http://localhost:8000/auth/register \
+curl -X POST http://localhost:8005/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","username":"user","password":"pass123"}'
 
 # Login
-curl -X POST http://localhost:8000/auth/login \
+curl -X POST http://localhost:8005/auth/login \
   -d "username=user@example.com&password=pass123"
 
 # Use token
-curl -X GET http://localhost:8000/auth/me \
+curl -X GET http://localhost:8005/auth/me \
   -H "Authorization: Bearer <token>"
 ```
 
 ### 2. Create Trip with Members
 ```bash
 # Create trip
-curl -X POST "http://localhost:8000/trips?creator_id=1" \
+curl -X POST "http://localhost:8005/trips?creator_id=1" \
   -H "Content-Type: application/json" \
   -d '{"title":"Weekend Getaway","destination":"Paris"}'
 
 # Add members
-curl -X POST http://localhost:8000/trips/1/members/2
-curl -X POST http://localhost:8000/trips/1/members/3
+curl -X POST http://localhost:8005/trips/1/members/2
+curl -X POST http://localhost:8005/trips/1/members/3
 ```
 
 ### 3. Add Expense and Split
 ```bash
-curl -X POST http://localhost:8000/expenses \
+curl -X POST http://localhost:8005/expenses \
   -H "Content-Type: application/json" \
   -d '{
     "trip_id": 1,
@@ -735,7 +749,7 @@ curl -X POST http://localhost:8000/expenses \
 
 ## 🔧 Development Tips
 
-1. **Interactive API Docs**: Visit `http://localhost:8000/docs` to test all endpoints
+1. **Interactive API Docs**: Visit `http://localhost:8005/docs` to test all endpoints
 2. **Database Reset**: Delete `fairshare.db` and run `python seed_data.py`
 3. **Hot Reload**: Server auto-reloads on code changes
 4. **Logs**: Check terminal for request logs and errors

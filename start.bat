@@ -9,15 +9,16 @@ pip install -r requirements.txt
 
 echo.
 echo [2/3] Initializing database and seeding demo data...
-python seed_data.py
+echo [2.5/3] Verifying and Seeding City Data...
+python seed_cities.py
 
 echo.
-echo [3/3] Starting FastAPI server...
+echo [3/3] Starting FastAPI server with PM2...
 echo.
 echo ========================================
-echo Server will start at: http://localhost:8000
-echo API Docs: http://localhost:8000/docs
+echo Server will start at: http://localhost:8005
+echo API Docs: http://localhost:8005/docs
 echo ========================================
 echo.
 
-python main.py
+npx -y pm2 start main.py --name fairshare-backend --interpreter python --watch --no-daemon

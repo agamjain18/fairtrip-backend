@@ -4,6 +4,10 @@ import bcrypt
 from database import User, Friendship, UserSession, PaymentMethod
 from schemas import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate
 from datetime import datetime, timezone
+from routes.auth import get_current_user
+import shutil
+import os
+from fastapi import UploadFile, File
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -144,3 +148,39 @@ async def delete_payment_method(user_id: str, method_id: str):
     
     await method.delete()
     return None
+
+UPLOAD_DIRECTORY = "uploads"
+if not os.path.exists(UPLOAD_DIRECTORY):
+    os.makedirs(UPLOAD_DIRECTORY)
+
+@router.post("/upload-avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Validate file
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Create unique filename
+        extension = os.path.splitext(file.filename)[1]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"avatar_{current_user.id}_{timestamp}{extension}"
+        file_path = os.path.join(UPLOAD_DIRECTORY, filename)
+
+        # Save file to disk
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Generate URL
+        url = f"/static/{filename}"
+
+        # Update user record
+        current_user.avatar_url = url
+        await current_user.save()
+
+        return {"url": url, "message": "Avatar uploaded successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

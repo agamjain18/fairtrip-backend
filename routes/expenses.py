@@ -15,6 +15,12 @@ async def get_expenses(trip_id: Optional[str] = None, skip: int = 0, limit: int 
         expenses = await Expense.find_all().skip(skip).limit(limit).to_list()
     return expenses
 
+@router.get("/trip/{trip_id}", response_model=List[ExpenseSchema])
+async def get_trip_expenses(trip_id: str, skip: int = 0, limit: int = 100):
+    """Get all expenses for a specific trip"""
+    expenses = await Expense.find(Expense.trip.id == trip_id).skip(skip).limit(limit).to_list()
+    return expenses
+
 @router.get("/{expense_id}", response_model=ExpenseSchema)
 async def get_expense(expense_id: str):
     """Get a specific expense"""
@@ -262,6 +268,7 @@ async def get_trip_expense_summary(trip_id: str, user_id: Optional[str] = None):
         summary["user_share"] = user_share
         summary["user_balance"] = user_paid - user_share
     
+    return summary
 @router.get("/user/{user_id}/summary")
 async def get_user_expense_summary(user_id: str):
     """Get financial summary for a user across all trips"""

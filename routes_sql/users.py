@@ -7,7 +7,7 @@ from typing import List
 import bcrypt
 from database_sql import get_db, User, Friendship, UserSession, PaymentMethod, increment_user_version
 from .notifications import send_notification_sql
-from schemas_sql import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate
+from schemas_sql import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate, FcmTokenUpdate
 from datetime import datetime, timezone
 from routes_sql.auth import get_current_user_sql
 from utils.timezone_utils import get_ist_now
@@ -248,6 +248,17 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
+@router.put("/fcm-token")
+def update_fcm_token(
+    fcm_data: FcmTokenUpdate,
+    current_user: User = Depends(get_current_user_sql),
+    db: Session = Depends(get_db)
+):
+    """Update user's FCM token for push notifications"""
+    current_user.fcm_token = fcm_data.token
+    db.commit()
+    return {"message": "FCM token updated successfully"}
+
 @router.put("/{user_id}", response_model=UserSchema)
 def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get_db)):
     """Update user details"""
@@ -265,17 +276,6 @@ def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get
     # Real-time sync
     increment_user_version(db, user_id)
     return user
-
-@router.put("/fcm-token")
-def update_fcm_token(
-    token: str,
-    current_user: User = Depends(get_current_user_sql),
-    db: Session = Depends(get_db)
-):
-    """Update user's FCM token for push notifications"""
-    current_user.fcm_token = token
-    db.commit()
-    return {"message": "FCM token updated successfully"}
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: int, db: Session = Depends(get_db)):

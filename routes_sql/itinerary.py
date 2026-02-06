@@ -82,7 +82,7 @@ def delete_itinerary_day(day_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     # Real-time sync
-    increment_trip_members_version(db, trip_id)
+    increment_trip_members_version(db, day.trip_id)
     return None
 
 # Activity routes

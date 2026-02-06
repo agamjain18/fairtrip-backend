@@ -59,6 +59,9 @@ class UserUpdate(BaseModel):
     show_active_trips: Optional[bool] = None
     fcm_token: Optional[str] = None
 
+class FcmTokenUpdate(BaseModel):
+    token: str
+
 class User(UserBase):
     id: int
     two_factor_enabled: bool

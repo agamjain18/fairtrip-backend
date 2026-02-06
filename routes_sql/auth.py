@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 from database_sql import get_db, User, OTP
 from schemas_sql import Token, LoginRequest, UserCreate, User as UserSchema, ForgotPasswordRequest, VerifyOTPRequest, ResetPasswordRequest, SocialLoginRequest, ChangePasswordRequest
+from utils.timezone_utils import get_ist_now
 
 
 import os
@@ -47,9 +48,9 @@ def hash_password(password: str) -> str:
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = get_ist_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = get_ist_now() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -302,8 +303,8 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         phone=user.phone,
         bio=user.bio,
         friend_code=generate_friend_code(),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=get_ist_now(),
+        updated_at=get_ist_now(),
         is_verified=True # Auto-verify for now to unblock testing/development
     )
     
@@ -313,7 +314,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
     # Generate and send OTP for verification
     otp_code = str(random.randint(100000, 999999))
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expires_at = get_ist_now() + timedelta(minutes=15)
     
     new_otp = OTP(email=user.email, otp_code=otp_code, expires_at=expires_at)
     db.add(new_otp)
@@ -391,7 +392,7 @@ def forgot_password(request: ForgotPasswordRequest, background_tasks: Background
 
     # Generate 6-digit OTP
     otp_code = str(random.randint(100000, 999999))
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expires_at = get_ist_now() + timedelta(minutes=10)
 
     # Save OTP to DB
     new_otp = OTP(email=request.email, otp_code=otp_code, expires_at=expires_at)
@@ -409,7 +410,7 @@ def verify_otp(request: VerifyOTPRequest, db: Session = Depends(get_db)):
     otp_record = db.query(OTP).filter(
         OTP.email == request.email,
         OTP.otp_code == request.otp_code,
-        OTP.expires_at > datetime.now(timezone.utc)
+        OTP.expires_at > get_ist_now()
     ).order_by(OTP.created_at.desc()).first()
 
     if not otp_record:
@@ -424,7 +425,7 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     otp_record = db.query(OTP).filter(
         OTP.email == request.email,
         OTP.otp_code == request.otp_code,
-        OTP.expires_at > datetime.now(timezone.utc)
+        OTP.expires_at > get_ist_now()
     ).order_by(OTP.created_at.desc()).first()
 
     if not otp_record:
@@ -436,7 +437,7 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="User not found")
 
     user.password_hash = hash_password(request.new_password)
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = get_ist_now()
     
     # 3. Clean up OTP (optional but recommended)
     db.delete(otp_record)
@@ -457,7 +458,7 @@ def resend_verification(request: ForgotPasswordRequest, background_tasks: Backgr
 
     # Generate new OTP
     otp_code = str(random.randint(100000, 999999))
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expires_at = get_ist_now() + timedelta(minutes=15)
     
     # Store new OTP
     new_otp = OTP(email=user.email, otp_code=otp_code, expires_at=expires_at)
@@ -475,7 +476,7 @@ def verify_registration(request: VerifyOTPRequest, background_tasks: BackgroundT
     otp_record = db.query(OTP).filter(
         OTP.email == request.email,
         OTP.otp_code == request.otp_code,
-        OTP.expires_at > datetime.now(timezone.utc)
+        OTP.expires_at > get_ist_now()
     ).order_by(OTP.created_at.desc()).first()
 
     if not otp_record:
@@ -572,8 +573,8 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
             phone=None,
             bio=None,
             friend_code=generate_friend_code(),
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=get_ist_now(),
+            updated_at=get_ist_now(),
             is_verified=True # Social logins are pre-verified
         )
         
@@ -617,7 +618,7 @@ def social_login(social_data: SocialLoginRequest, background_tasks: BackgroundTa
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
         
-    time_diff = datetime.now(timezone.utc) - created_at
+    time_diff = get_ist_now() - created_at
     
     if time_diff.total_seconds() < 10: # Assuming it was created in this request
         is_new_user = True
@@ -642,7 +643,7 @@ def change_password(
     
     # 2. Update to new password
     current_user.password_hash = hash_password(request.new_password)
-    current_user.updated_at = datetime.now(timezone.utc)
+    current_user.updated_at = get_ist_now()
     
     db.commit()
     

@@ -2,6 +2,7 @@ import shutil
 import os
 from datetime import datetime, timezone
 import traceback
+from utils.timezone_utils import get_ist_now
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from database_sql import Photo, Trip, User, get_db
@@ -30,7 +31,7 @@ def upload_receipt(
             raise HTTPException(status_code=400, detail=f"File must be an image, got {file.content_type}")
 
         # Create unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_ist_now().strftime("%Y%m%d_%H%M%S")
         filename = f"receipt_{trip_id}_{timestamp}_{file.filename}"
         file_path = os.path.join(UPLOAD_DIRECTORY, filename)
         print(f"DEBUG: Saving file to: {os.path.abspath(file_path)}")
@@ -48,7 +49,7 @@ def upload_receipt(
             uploaded_by_id=current_user.id,
             url=url,
             caption="Bills",
-            uploaded_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            uploaded_at=get_ist_now()
         )
         db.add(receipt)
         db.commit()
@@ -77,7 +78,7 @@ def upload_trip_photo(
             raise HTTPException(status_code=400, detail=f"File must be an image, got {file.content_type}")
 
         # Create unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_ist_now().strftime("%Y%m%d_%H%M%S")
         filename = f"photo_{trip_id}_{timestamp}_{file.filename}"
         file_path = os.path.join(UPLOAD_DIRECTORY, filename)
 
@@ -94,7 +95,7 @@ def upload_trip_photo(
             uploaded_by_id=current_user.id,
             url=url,
             caption=caption or "Trip Photo",
-            uploaded_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            uploaded_at=get_ist_now()
         )
         db.add(photo)
         db.commit()

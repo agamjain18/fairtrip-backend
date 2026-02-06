@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database_sql import Notification, User, get_db
 from schemas_sql import Notification as NotificationSchema, NotificationCreate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -40,7 +41,7 @@ def create_notification(notification: NotificationCreate, db: Session = Depends(
         type=notification.type,
         action_url=notification.action_url,
         is_read=False,
-        created_at=datetime.now(timezone.utc)
+        created_at=get_ist_now()
     )
     
     db.add(db_notification)
@@ -111,7 +112,7 @@ def send_notification_sql(
             type=notification_type,
             action_url=action_url,
             is_read=False,
-            created_at=datetime.now(timezone.utc)
+            created_at=get_ist_now()
         )
         db.add(notification)
         db.commit()

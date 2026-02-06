@@ -4,6 +4,7 @@ from typing import List
 from database_sql import get_db, ItineraryDay, Activity, Trip, increment_trip_members_version
 from schemas_sql import ItineraryDay as ItineraryDaySchema, ItineraryDayCreate, Activity as ActivitySchema, ActivityCreate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/itinerary", tags=["itinerary"])
 
@@ -40,8 +41,8 @@ def create_itinerary_day(day: ItineraryDayCreate, db: Session = Depends(get_db))
         date=day.date,
         title=day.title,
         description=day.description,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     db.add(db_day)
     db.commit()
@@ -62,7 +63,7 @@ def update_itinerary_day(day_id: int, day_update: ItineraryDayCreate, db: Sessio
     for key, value in update_data.items():
         setattr(day, key, value)
         
-    day.updated_at = datetime.now(timezone.utc)
+    day.updated_at = get_ist_now()
     db.commit()
     db.refresh(day)
     
@@ -122,8 +123,8 @@ def create_activity(activity: ActivityCreate, db: Session = Depends(get_db)):
         notes=activity.notes,
         latitude=activity.latitude,
         longitude=activity.longitude,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     db.add(db_activity)
     db.commit()
@@ -147,7 +148,7 @@ def update_activity(activity_id: int, activity_update: ActivityCreate, db: Sessi
     for key, value in update_data.items():
         setattr(activity, key, value)
         
-    activity.updated_at = datetime.now(timezone.utc)
+    activity.updated_at = get_ist_now()
     db.commit()
     db.refresh(activity)
     

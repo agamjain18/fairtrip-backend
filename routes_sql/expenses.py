@@ -7,6 +7,7 @@ from schemas_sql import Expense as ExpenseSchema, ExpenseCreate, ExpenseUpdate, 
 
 from datetime import datetime, timezone
 import json
+from utils.timezone_utils import get_ist_now
 from collections import defaultdict
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -109,12 +110,12 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
         location=expense.location,
         split_type=expense.split_type,
         split_data=final_split_data,
-        expense_date=expense.expense_date or datetime.now(timezone.utc),
+        expense_date=expense.expense_date or get_ist_now(),
         paid_by_id=expense.paid_by_id,
         participants=participants,
         receipt_url=expense.receipt_url,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     
     db.add(db_expense)
@@ -157,7 +158,7 @@ def update_expense(expense_id: int, expense_update: ExpenseUpdate, db: Session =
     for key, value in update_data.items():
         setattr(expense, key, value)
         
-    expense.updated_at = datetime.now(timezone.utc)
+    expense.updated_at = get_ist_now()
     
     if 'amount' in update_data:
         new_amount = update_data['amount']
@@ -237,7 +238,7 @@ def create_dispute(expense_id: int, user_id: int, reason: str, db: Session = Dep
         raised_by_id=user_id,
         reason=reason,
         status="open",
-        created_at=datetime.now(timezone.utc)
+        created_at=get_ist_now()
     )
     
     expense.status = "disputed"

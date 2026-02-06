@@ -4,6 +4,7 @@ from typing import List, Optional
 from database_sql import get_db, Accommodation, Trip, increment_trip_members_version
 from schemas_sql import Accommodation as AccommodationSchema, AccommodationCreate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/accommodations", tags=["accommodations"])
 
@@ -74,7 +75,7 @@ def create_accommodation(accommodation: AccommodationCreate, db: Session = Depen
         latitude=accommodation.latitude,
         longitude=accommodation.longitude,
         confirmation_url=accommodation.confirmation_url,
-        created_at=datetime.now(timezone.utc)
+        created_at=get_ist_now()
     )
     
     db.add(db_accommodation)
@@ -196,7 +197,7 @@ async def extract_metadata(request: UrlRequest):
             "name": name,
             "address": address[:200] if address else "",
             "contact_number": contact_number,
-            "notes": f"Scraped via deterministic rules: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+            "notes": f"Scraped via deterministic rules: {get_ist_now().strftime('%Y-%m-%d %H:%M')}"
         }
 
     except Exception as e:

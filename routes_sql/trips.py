@@ -9,6 +9,7 @@ from .auth import get_current_user_sql
 from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema, InviteRequest
 from datetime import datetime, timezone
 from .expenses import get_user_balance_for_trip
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -97,8 +98,8 @@ def create_trip(trip: TripCreate, creator_id: int, background_tasks: BackgroundT
     db_trip = Trip(
         **trip.dict(),
         creator_id=creator_id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     
     # Add creator as the first member
@@ -166,7 +167,7 @@ def update_trip(trip_id: int, trip_update: TripUpdate, db: Session = Depends(get
     for key, value in update_data.items():
         setattr(db_trip, key, value)
             
-    db_trip.updated_at = datetime.now(timezone.utc)
+    db_trip.updated_at = get_ist_now()
     db.commit()
     db.refresh(db_trip)
     

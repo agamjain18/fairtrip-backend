@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from .notifications import send_notification_sql
 from database_sql import get_db, Photo, Poll, PollOption, PollVote, BucketListItem, Accommodation, Flight, Notification, Trip, User
+from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 # ... existing code ...
 
@@ -93,7 +95,7 @@ def complete_bucket_list_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Bucket list item not found")
     
     item.is_completed = True
-    item.completed_at = datetime.now(timezone.utc)
+    item.completed_at = get_ist_now()
     db.commit()
     db.refresh(item)
     return item

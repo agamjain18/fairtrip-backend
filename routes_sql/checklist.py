@@ -5,6 +5,7 @@ from .notifications import send_notification_sql
 from database_sql import get_db, ChecklistItem, User, Trip, increment_trip_members_version
 from schemas_sql import ChecklistItem as ChecklistItemSchema, ChecklistItemCreate, ChecklistItemUpdate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/checklist", tags=["checklist"])
 
@@ -41,8 +42,8 @@ def create_checklist_item(item: ChecklistItemCreate, db: Session = Depends(get_d
         priority=item.priority,
         due_date=item.due_date,
         assignees=assignees,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     db.add(db_item)
     db.commit()
@@ -75,14 +76,14 @@ def update_checklist_item(item_id: int, item_update: ChecklistItemUpdate, db: Se
     
     if 'is_completed' in update_data:
         if update_data['is_completed'] and not item.is_completed:
-            item.completed_at = datetime.now(timezone.utc)
+            item.completed_at = get_ist_now()
         elif not update_data['is_completed']:
             item.completed_at = None
     
     for key, value in update_data.items():
         setattr(item, key, value)
         
-    item.updated_at = datetime.now(timezone.utc)
+    item.updated_at = get_ist_now()
     db.commit()
     db.refresh(item)
     
@@ -113,8 +114,8 @@ def toggle_checklist_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Checklist item not found")
     
     item.is_completed = not item.is_completed
-    item.completed_at = datetime.now(timezone.utc) if item.is_completed else None
-    item.updated_at = datetime.now(timezone.utc)
+    item.completed_at = get_ist_now() if item.is_completed else None
+    item.updated_at = get_ist_now()
     
     db.commit()
     db.refresh(item)

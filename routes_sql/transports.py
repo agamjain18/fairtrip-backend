@@ -6,6 +6,7 @@ from typing import List, Optional
 from database_sql import get_db, Transport, Trip, increment_trip_members_version
 from schemas_sql import Transport as TransportSchema, TransportCreate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 import os
 # import google.generativeai as genai
 import tempfile
@@ -82,8 +83,8 @@ def create_transport(transport: TransportCreate, db: Session = Depends(get_db)):
         status=transport.status,
         cost=transport.cost,
         notes=transport.notes,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     
     db.add(db_transport)

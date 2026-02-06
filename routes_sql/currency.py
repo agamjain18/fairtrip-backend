@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database_sql import CurrencyRate, get_db
 from schemas_sql import CurrencyRate as CurrencyRateSchema, CurrencyRateCreate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/currency", tags=["currency"])
 
@@ -81,7 +82,7 @@ def create_or_update_rate(rate: CurrencyRateCreate, db: Session = Depends(get_db
     if existing_rate:
         existing_rate.rate = rate.rate
         existing_rate.source = rate.source
-        existing_rate.updated_at = datetime.now(timezone.utc)
+        existing_rate.updated_at = get_ist_now()
         db.commit()
         db.refresh(existing_rate)
         return existing_rate
@@ -91,7 +92,7 @@ def create_or_update_rate(rate: CurrencyRateCreate, db: Session = Depends(get_db
             to_currency=to_curr,
             rate=rate.rate,
             source=rate.source,
-            updated_at=datetime.now(timezone.utc)
+            updated_at=get_ist_now()
         )
         db.add(db_rate)
         db.commit()
@@ -133,7 +134,7 @@ def seed_common_rates(db: Session = Depends(get_db)):
         if existing:
             existing.rate = rate_data["rate"]
             existing.source = "seed"
-            existing.updated_at = datetime.now(timezone.utc)
+            existing.updated_at = get_ist_now()
             updated_count += 1
         else:
             new_rate = CurrencyRate(
@@ -141,7 +142,7 @@ def seed_common_rates(db: Session = Depends(get_db)):
                 to_currency=rate_data["to"],
                 rate=rate_data["rate"],
                 source="seed",
-                updated_at=datetime.now(timezone.utc)
+                updated_at=get_ist_now()
             )
             db.add(new_rate)
             created_count += 1

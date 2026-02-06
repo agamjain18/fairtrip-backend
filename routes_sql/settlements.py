@@ -7,6 +7,7 @@ from database_sql import Settlement, Trip, User, get_db, increment_trip_members_
 from .notifications import send_notification_sql
 from schemas_sql import Settlement as SettlementSchema, SettlementCreate, SettlementUpdate
 from datetime import datetime, timezone
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
 
@@ -55,7 +56,7 @@ def create_settlement(settlement: SettlementCreate, background_tasks: Background
         payment_reference=settlement.payment_reference,
         notes=settlement.notes,
         status=settlement.status or "pending",
-        created_at=datetime.now(timezone.utc)
+        created_at=get_ist_now()
     )
     
     db.add(db_settlement)
@@ -94,7 +95,7 @@ def update_settlement(settlement_id: int, settlement_update: SettlementUpdate, d
     is_now_completed = update_data.get("status") == "completed"
 
     if is_now_completed and was_pending:
-        settlement.settled_at = datetime.now(timezone.utc)
+        settlement.settled_at = get_ist_now()
         
         # Notify the Payer that it's been approved
         to_user = db.query(User).filter(User.id == settlement.to_user_id).first()

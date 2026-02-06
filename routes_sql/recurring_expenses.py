@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database_sql import RecurringExpense, Trip, User, Expense, get_db
 from schemas_sql import RecurringExpense as RecurringExpenseSchema, RecurringExpenseCreate, RecurringExpenseUpdate
 from datetime import datetime, timezone, timedelta
+from utils.timezone_utils import get_ist_now
 
 router = APIRouter(prefix="/recurring-expenses", tags=["recurring-expenses"])
 
@@ -72,8 +73,8 @@ def create_recurring_expense(recurring_expense: RecurringExpenseCreate, db: Sess
         end_date=recurring_expense.end_date,
         next_occurrence=next_occurrence,
         is_active=True,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     
     db.add(db_recurring_expense)
@@ -92,7 +93,7 @@ def update_recurring_expense(recurring_expense_id: int, recurring_expense_update
     for key, value in update_data.items():
         setattr(recurring_expense, key, value)
         
-    recurring_expense.updated_at = datetime.now(timezone.utc)
+    recurring_expense.updated_at = get_ist_now()
     db.commit()
     db.refresh(recurring_expense)
     return recurring_expense
@@ -111,7 +112,7 @@ def delete_recurring_expense(recurring_expense_id: int, db: Session = Depends(ge
 @router.post("/process")
 def process_recurring_expenses(db: Session = Depends(get_db)):
     """Process all due recurring expenses"""
-    now = datetime.now(timezone.utc)
+    now = get_ist_now()
     due_expenses = db.query(RecurringExpense).filter(
         RecurringExpense.is_active == True,
         RecurringExpense.next_occurrence <= now

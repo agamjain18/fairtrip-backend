@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker, relationship, Session
 from datetime import datetime, timezone
 import enum
 import os
+from utils.timezone_utils import get_ist_now
 
 DATABASE_URL = "sqlite:///./fairshare_v2.db"
 
@@ -98,8 +99,8 @@ class User(Base):
     amount_to_receive = Column(Float, default=0.0)
     amount_to_pay = Column(Float, default=0.0)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
     data_version = Column(Integer, default=1)
 
     # Relationships
@@ -119,7 +120,7 @@ class Friendship(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     friend_id = Column(Integer, ForeignKey("users.id"))
     status = Column(String, default="accepted") # pending, accepted, blocked
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
@@ -130,8 +131,8 @@ class UserSession(Base):
     location = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    last_activity = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_activity = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_ist_now)
 
     user = relationship("User", back_populates="sessions")
 
@@ -143,7 +144,7 @@ class PaymentMethod(Base):
     name = Column(String, nullable=True)
     identifier = Column(String, nullable=True) # UPI ID or masked card number
     is_primary = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     user = relationship("User", back_populates="payment_methods")
 
@@ -152,7 +153,7 @@ class OTP(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, index=True)
     otp_code = Column(String)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
     expires_at = Column(DateTime)
 
 class Trip(Base):
@@ -187,8 +188,8 @@ class Trip(Base):
     
     creator_id = Column(Integer, ForeignKey("users.id"))
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     @property
     def member_count(self):
@@ -233,9 +234,9 @@ class Expense(Base):
     
     recurring_expense_id = Column(Integer, nullable=True)
     
-    expense_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    expense_date = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     trip = relationship("Trip", back_populates="expenses")
     paid_by = relationship("User")
@@ -250,7 +251,7 @@ class Dispute(Base):
     reason = Column(Text, nullable=True)
     status = Column(String, default="open") # open, resolved, rejected
     resolution = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
     resolved_at = Column(DateTime, nullable=True)
 
     expense = relationship("Expense", back_populates="disputes")
@@ -265,8 +266,8 @@ class ItineraryDay(Base):
     title = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     trip = relationship("Trip", back_populates="itinerary_days")
     activities = relationship("Activity", back_populates="day", cascade="all, delete-orphan")
@@ -293,8 +294,8 @@ class Activity(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     day = relationship("ItineraryDay", back_populates="activities")
 
@@ -311,8 +312,8 @@ class ChecklistItem(Base):
     due_date = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     trip = relationship("Trip", back_populates="checklist_items")
     assignees = relationship("User", secondary=checklist_assignees)
@@ -328,7 +329,7 @@ class Photo(Base):
     location = Column(String, nullable=True)
     
     taken_at = Column(DateTime, nullable=True)
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at = Column(DateTime, default=get_ist_now)
 
     trip = relationship("Trip", back_populates="photos")
     uploaded_by = relationship("User")
@@ -343,7 +344,7 @@ class Poll(Base):
     is_active = Column(Boolean, default=True)
     
     ends_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
     
     trip = relationship("Trip", back_populates="polls")
     created_by = relationship("User")
@@ -364,7 +365,7 @@ class PollVote(Base):
     id = Column(Integer, primary_key=True, index=True)
     poll_option_id = Column(Integer, ForeignKey("poll_options.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     option = relationship("PollOption", back_populates="votes")
     user = relationship("User")
@@ -380,7 +381,7 @@ class BucketListItem(Base):
     is_completed = Column(Boolean, default=False)
     
     completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     trip = relationship("Trip", back_populates="bucket_list_items")
     added_by = relationship("User")
@@ -405,7 +406,7 @@ class Accommodation(Base):
     longitude = Column(Float, nullable=True)
     confirmation_url = Column(String, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     trip = relationship("Trip", back_populates="accommodations")
 
@@ -431,8 +432,8 @@ class Transport(Base):
     cost = Column(Float, default=0.0)
     notes = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
     trip = relationship("Trip", back_populates="transports")
 
@@ -446,7 +447,7 @@ class Transaction(Base):
     status = Column(String, default="completed") # pending, completed, failed
     
     related_expense_id = Column(Integer, ForeignKey("expenses.id"), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -458,7 +459,7 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     
     action_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     user = relationship("User", back_populates="notifications")
 
@@ -477,7 +478,7 @@ class Settlement(Base):
     
     status = Column(String, default="pending") # pending, completed, cancelled
     settled_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
 
     trip = relationship("Trip", back_populates="settlements")
 
@@ -498,15 +499,15 @@ class RecurringExpense(Base):
     
     frequency = Column(String, default="monthly") # daily, weekly, monthly, yearly
     interval = Column(Integer, default=1)
-    start_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    start_date = Column(DateTime, default=get_ist_now)
     end_date = Column(DateTime, nullable=True)
-    next_occurrence = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    next_occurrence = Column(DateTime, default=get_ist_now)
     
     is_active = Column(Boolean, default=True)
     last_generated = Column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=get_ist_now)
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
 class CurrencyRate(Base):
     __tablename__ = "currency_rates"
@@ -516,7 +517,7 @@ class CurrencyRate(Base):
     rate = Column(Float)
     
     source = Column(String, default="manual")
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
 class City(Base):
     __tablename__ = "cities"
@@ -538,7 +539,7 @@ class DestinationImage(Base):
     image_url = Column(String)
     famous_spot = Column(String, nullable=True)
     description = Column(Text, nullable=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
 
 # Database Helper
 def get_db():

@@ -10,6 +10,7 @@ from .notifications import send_notification_sql
 from schemas_sql import User as UserSchema, UserCreate, UserUpdate, PaymentMethod as PaymentMethodSchema, PaymentMethodCreate
 from datetime import datetime, timezone
 from routes_sql.auth import get_current_user_sql
+from utils.timezone_utils import get_ist_now
 import random
 import string
 
@@ -37,7 +38,7 @@ def upload_avatar(
             raise HTTPException(status_code=400, detail="File must be an image")
 
         # Create unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_ist_now().strftime("%Y%m%d_%H%M%S")
         filename = f"avatar_{current_user.id}_{timestamp}_{file.filename}"
         file_path = os.path.join(PROFILE_PICS_DIR, filename)
 
@@ -238,8 +239,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         phone=user.phone,
         bio=user.bio,
         friend_code=generate_friend_code(),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=get_ist_now(),
+        updated_at=get_ist_now()
     )
     
     db.add(db_user)
@@ -327,7 +328,7 @@ def add_payment_method(user_id: int, method: PaymentMethodCreate, db: Session = 
         name=method.name,
         identifier=method.identifier,
         is_primary=method.is_primary,
-        created_at=datetime.now(timezone.utc)
+        created_at=get_ist_now()
     )
     db.add(db_method)
     db.commit()

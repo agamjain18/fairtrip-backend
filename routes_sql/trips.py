@@ -4,10 +4,11 @@ from utils.image_utils import update_trip_image_task
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database_sql import get_db, Trip, User, trip_members, increment_trip_members_version, increment_user_version, DestinationImage
-from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema
+from .notifications import send_notification_sql
+from .auth import get_current_user_sql
+from schemas_sql import Trip as TripSchema, TripCreate, TripUpdate, User as UserSchema, InviteRequest
 from datetime import datetime, timezone
 from .expenses import get_user_balance_for_trip
-from .notifications import send_notification_sql
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -238,9 +239,57 @@ def add_trip_member(trip_id: int, user_id: int, background_tasks: BackgroundTask
     )
 
     if user.email:
-        background_tasks.add_task(send_trip_invitation_email, user.email, inviter_name, trip.title)
+        background_tasks.add_task(send_trip_invitation_email, user.email, inviter_name, trip.title, f"https://fairtrip.app/join-trip/{trip.id}")
 
     return {"message": "Member added successfully"}
+
+@router.post("/{trip_id}/invite")
+def invite_by_email(trip_id: int, request: InviteRequest, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user_sql), db: Session = Depends(get_db)):
+    """Invite a user to a trip by email"""
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+        
+    # Check if user already exists
+    user = db.query(User).filter(User.email == request.email).first()
+    
+    inviter_name = current_user.full_name or current_user.username
+    
+    # Send invitation email with join link
+    join_url = f"https://fairtrip.app/join-trip/{trip_id}"
+    background_tasks.add_task(send_trip_invitation_email, request.email, inviter_name, trip.title, join_url)
+    
+    # If user exists, also send an in-app notification
+    if user:
+        send_notification_sql(
+            db,
+            user_id=user.id,
+            title="Trip Invitation",
+            message=f"{inviter_name} invited you to join '{trip.title}'",
+            notification_type="trip",
+            action_url=f"/join-trip/{trip.id}"
+        )
+        
+    return {"message": f"Invitation sent to {request.email}"}
+
+@router.post("/{trip_id}/join")
+def join_trip(trip_id: int, current_user: User = Depends(get_current_user_sql), db: Session = Depends(get_db)):
+    """Join a trip using a link/trip_id"""
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+        
+    if current_user in trip.members:
+        return {"message": "Already a member"}
+        
+    trip.members.append(current_user)
+    db.commit()
+    
+    # Real-time sync
+    increment_trip_members_version(db, trip_id)
+    increment_user_version(db, current_user.id)
+    
+    return {"message": "Joined trip successfully", "trip_id": trip.id}
 
 @router.delete("/{trip_id}/members/{user_id}")
 def remove_trip_member(trip_id: int, user_id: int, db: Session = Depends(get_db)):

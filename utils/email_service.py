@@ -218,14 +218,14 @@ def send_trip_created_email(email: str, user_name: str, trip_title: str, destina
     html = _get_base_template("Adventure Awaits - FairTrip", content, "Open in FairTrip", "https://fairtrip.app/trips")
     return send_email_html(email, f"Trip Confirmed: {trip_title} 🌍", html)
 
-def send_trip_invitation_email(email: str, inviter_name: str, trip_title: str):
+def send_trip_invitation_email(email: str, inviter_name: str, trip_title: str, join_url: str = "https://fairtrip.app/trips"):
     content = f"""
     <div class="greeting">You're Invited! ✈️</div>
     <p>Hi there,</p>
     <p><strong>{inviter_name}</strong> has invited you to join the trip <strong>{trip_title}</strong> on FairTrip.</p>
     <p>Join the squad to collaborate on the itinerary and track shared expenses easily.</p>
     """
-    html = _get_base_template("Trip Invitation - FairTrip", content, "Join Trip", "https://fairtrip.app/trips")
+    html = _get_base_template("Trip Invitation - FairTrip", content, "Join Trip", join_url)
     return send_email_html(email, f"Invitation to {trip_title}", html)
 
 def send_trip_deleted_email(email: str, user_name: str, trip_title: str):

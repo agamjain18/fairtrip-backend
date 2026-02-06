@@ -565,3 +565,7 @@ class CurrencyRate(CurrencyRateBase):
     
     class Config:
         from_attributes = True
+
+class InviteRequest(BaseModel):
+    email: EmailStr
+    message: Optional[str] = None

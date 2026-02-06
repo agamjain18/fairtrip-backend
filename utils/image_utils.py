@@ -31,9 +31,8 @@ async def get_famous_spot_image(destination: str, db: Session) -> str:
     image_url = f"https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80" # Default fallback
     
     # Try to generate a more specific keyword-based URL
-    # We'll stick to a more robust unsplash keyword search or a backup provider
     search_keywords = f"{spot_name.replace(' ', ',')},landscape,landmark,travel"
-    image_url = f"https://source.unsplash.com/1200x800/?{search_keywords}"
+    image_url = f"https://loremflickr.com/1200/800/{search_keywords}"
     
     # If source.unsplash.com is being flaky, we can use a backup like loremflickr
     # image_url = f"https://loremflickr.com/1200/800/{spot_name.replace(' ', ',')},travel"
@@ -114,9 +113,9 @@ async def get_city_tourist_spots_images(city_name: str) -> List[str]:
         image_urls = []
         for spot in spots:
             search_keywords = f"{spot.replace(' ', ',')},travel"
-            image_urls.append(f"https://source.unsplash.com/1200x800/?{search_keywords}")
+            image_urls.append(f"https://loremflickr.com/1200/800/{search_keywords}")
         
         return image_urls
     except Exception as e:
         print(f"❌ Error getting spots for {city_name}: {e}")
-        return [f"https://source.unsplash.com/1200x800/?{city_name},travel"]
+        return [f"https://loremflickr.com/1200/800/{city_name.replace(' ', ',')},travel"]

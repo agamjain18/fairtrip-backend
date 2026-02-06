@@ -41,7 +41,7 @@ async def fetch_place_image(place_name: str) -> str:
         
         if "PLACEHOLDER" in image_url or len(image_url) > 500 or not image_url.startswith("http"):
              # Fallback to a generic travel image service
-             image_url = f"https://source.unsplash.com/800x600/?{place_name.replace(' ', ',')}"
+             image_url = f"https://loremflickr.com/800/600/{place_name.replace(' ', ',')}"
         
         # Cache the result
         await collection.insert_one({
@@ -53,7 +53,7 @@ async def fetch_place_image(place_name: str) -> str:
         return image_url
     except Exception as e:
         print(f"Error fetching image for {place_name}: {e}")
-        return f"https://source.unsplash.com/800x600/?travel,{place_name}"
+        return f"https://loremflickr.com/800/600/travel,{place_name.replace(' ', ',')}"
 
 async def generate_trip_itinerary(trip_id: str, destination: str, start_date: str, end_date: str, budget: float):
     """

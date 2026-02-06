@@ -523,8 +523,10 @@ class City(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     state = Column(String, nullable=True)
+    country = Column(String, nullable=True, default="India")
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    image_url = Column(String, nullable=True)
     emergency_numbers = Column(JSON, nullable=True) # JSON object
     popular_spots = Column(JSON, nullable=True) # JSON list of {name, image_url, description}
 
@@ -532,8 +534,10 @@ class DestinationImage(Base):
     __tablename__ = "destination_images"
     id = Column(Integer, primary_key=True, index=True)
     destination = Column(String, unique=True, index=True)
+    city_name = Column(String, nullable=True)
     image_url = Column(String)
     famous_spot = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 # Database Helper

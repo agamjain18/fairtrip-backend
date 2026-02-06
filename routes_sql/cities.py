@@ -72,11 +72,11 @@ async def search_cities(q: str = Query(..., min_length=1), db: Session = Depends
         {
             "id": city.id,
             "name": city.name,
-            "state": city.state,
-            "country": city.country,
+            "region": city.state,
+            "country": getattr(city, 'country', 'India'),
             "latitude": city.latitude,
             "longitude": city.longitude,
-            "image_url": city.image_url
+            "image_url": getattr(city, 'image_url', None)
         }
         for city in cities
     ]
@@ -112,9 +112,11 @@ async def get_all_cities(skip: int = 0, limit: int = 100, db: Session = Depends(
         {
             "id": city.id,
             "name": city.name,
-            "state": city.state,
+            "region": city.state,
+            "country": getattr(city, 'country', 'India'),
             "latitude": city.latitude,
             "longitude": city.longitude,
+            "image_url": getattr(city, 'image_url', None),
             "emergency_numbers": city.emergency_numbers,
             "popular_spots": city.popular_spots
         }
@@ -154,11 +156,11 @@ async def get_city_details(city_name: str, db: Session = Depends(get_db)):
     result = {
         "id": city.id,
         "name": city.name,
-        "state": city.state,
-        "country": city.country,
+        "region": city.state,
+        "country": getattr(city, 'country', 'India'),
         "latitude": city.latitude,
         "longitude": city.longitude,
-        "image_url": city.image_url
+        "image_url": getattr(city, 'image_url', None)
     }
     
     # Cache for 1 hour (3600 seconds)
